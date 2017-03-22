@@ -27,3 +27,4 @@ certificates:
         valid_for: 10y
         names:
           - consul_vault_peer
+          - 127.0.0.1

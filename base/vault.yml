@@ -1,17 +1,17 @@
 instance_groups:
-  - name: vault
-    jobs:
-      - { release: safe,     name: vault }
-      - { release: toolbelt, name: toolbelt }
-      - { release: toolbelt, name: toolbelt-quick }
-    instances: 3
-    azs: (( grab params.availability_zones ))
-    persistent_disk_pool: (( grab params.vault_disk_pool ))
-    vm_type: (( grab params.vault_vm_type ))
-    stemcell: default
-    networks:
-    - name: (( grab params.vault_network ))
-      static_ips: (( static_ips(0, 1, 2) ))
+- name: vault
+  jobs:
+    - { release: safe,     name: vault }
+    - { release: toolbelt, name: toolbelt }
+    - { release: toolbelt, name: toolbelt-quick }
+  instances: 3
+  azs: (( grab params.availability_zones ))
+  persistent_disk_pool: (( grab params.vault_disk_pool ))
+  vm_type: (( grab params.vault_vm_type ))
+  stemcell: default
+  networks:
+  - name: (( grab params.vault_network ))
+    static_ips: (( static_ips(0, 1, 2) ))
 
 meta:
   vault: (( concat "secret/" params.vault ))
@@ -34,9 +34,9 @@ properties:
 
 releases:
 - name: safe
-  version: 0.0.1
-  sha1: 92ac4ba992318e33e8d44e49139d078b3a02bb5c
-  url: https://github.com/cloudfoundry-community/safe-boshrelease/releases/download/v0.0.1/safe-0.0.1.tgz
+  version: 0.0.4
+  sha1: 4f94d24d8d1d37fc470023ddaf9121c5a2993a9a
+  url: https://github.com/cloudfoundry-community/safe-boshrelease/releases/download/v0.0.4/safe-0.0.4.tgz
 - name: toolbelt
   version: latest
 
