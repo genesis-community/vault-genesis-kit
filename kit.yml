@@ -1,0 +1,29 @@
+---
+name: vault
+homepage: https://github.com/cloudfoundry-community/safe-boshrelease
+github: https://github.com/genesis-community/vault-genesis-kit
+author: Geoff Franks <geoff@starkandwayne.com>
+
+subkits:
+- prompt: Are you deploying Vault on Azure?
+  subkit: azure
+
+params:
+  base:
+  - description: The name of the BOSH network to deploy Vault to
+    param: vault_network
+  - description: The name of the BOSH disk pool to give Vault
+    param: vault_disk_pool
+  - description: The name of the BOSH VM type for Vault to use
+    param: vault_vm_type
+
+credentials: {}
+
+certificates:
+  base:
+    certs:
+      ca: { valid_for: 10y }
+      consul:
+        valid_for: 10y
+        names:
+          - consul_vault_peer

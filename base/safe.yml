@@ -1,0 +1,44 @@
+instance_groups:
+  - name: vault
+    jobs:
+      - { release: safe,     name: vault }
+      - { release: toolbelt, name: toolbelt }
+      - { release: toolbelt, name: toolbelt-quick }
+    instances: 3
+    azs: (( grab params.availability_zones ))
+    persistent_disk_pool: (( grab params.vault_disk_pool ))
+    vm_type: (( grab params.vault_vm_type ))
+    stemcell: default
+    networks:
+    - name: (( grab params.vault_network ))
+      static_ips: (( static_ips(0, 1, 2) ))
+
+meta:
+  vault: (( concat "secret/" params.vault ))
+
+update:
+  serial: true
+  canaries: 1
+  canary_watch_time: 30000-120000
+  max_in_flight: 1
+  update_watch_time: 30000-120000
+
+properties:
+  safe:
+    cluster_ips: (( grab instance_groups.vault.networks[0].static_ips ))
+    peer:
+      tls:
+        certificate: (( vault meta.vault "/certs/consul:certificate" ))
+        key:         (( vault meta.vault "/certs/consul:key" ))
+        ca:          (( vault meta.vault "/certs/ca:certificate" ))
+
+releases:
+- name: safe
+  version: FIXME
+- name: toolbelt
+  version: latest
+
+stemcells:
+- os: (( grab params.stemcell_os ))
+  version: (( grab params.stemcell_version ))
+  alias: default
