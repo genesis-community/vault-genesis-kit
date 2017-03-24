@@ -34,9 +34,9 @@ properties:
 
 releases:
 - name: safe
-  version: 0.0.4
-  sha1: 4f94d24d8d1d37fc470023ddaf9121c5a2993a9a
-  url: https://github.com/cloudfoundry-community/safe-boshrelease/releases/download/v0.0.4/safe-0.0.4.tgz
+  version: 0.0.5
+  sha1: d81e020e4817880c4dd3c623d98b2049cfa7af8c
+  url: https://github.com/cloudfoundry-community/safe-boshrelease/releases/download/v0.0.5/safe-0.0.5.tgz
 - name: toolbelt
   version: latest
 
