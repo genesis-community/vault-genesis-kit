@@ -2,8 +2,6 @@ instance_groups:
 - name: vault
   jobs:
     - { release: safe,     name: vault }
-    - { release: toolbelt, name: toolbelt }
-    - { release: toolbelt, name: toolbelt-quick }
   instances: 3
   azs: (( grab params.availability_zones ))
   persistent_disk_pool: (( grab params.vault_disk_pool ))
@@ -37,8 +35,6 @@ releases:
   version: 0.0.5
   sha1: d81e020e4817880c4dd3c623d98b2049cfa7af8c
   url: https://github.com/cloudfoundry-community/safe-boshrelease/releases/download/v0.0.5/safe-0.0.5.tgz
-- name: toolbelt
-  version: latest
 
 stemcells:
 - os: (( grab params.stemcell_os ))
