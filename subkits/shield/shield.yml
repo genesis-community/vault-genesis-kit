@@ -1,0 +1,14 @@
+---
+instance_groups:
+- name: vault
+  jobs:
+  - name: shield-agent
+    release: shield
+    properties:
+      shield:
+        agent:
+          daemon_public_key: (( vault params.shield_key_vault_path ))
+
+releases:
+- name: shield
+  version: latest
