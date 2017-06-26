@@ -21,7 +21,7 @@ genesis init --kit vault
 genesis init --kit vault/1.0.0
 
 # create a my-vault-configs repo using the latest version of the vault kit
-genesis init --kit vault -d my-shield-configs
+genesis init --kit vault -d my-vault-configs
 ```
 
 Subkits
@@ -45,13 +45,13 @@ Params
 
 #### Base Params
 
-- **params.shield_disk_pool** - used to define the persistent disk pool that the Vault VMs will
+- **params.vault_disk_pool** - used to define the persistent disk pool that the Vault VMs will
   be given. This pool must exist in the Cloud Config of the BOSH director that deploys
   Vault. This defaults to `vault`.
-- **params.shield_vm_type** - used to define the Cloud Config VM type that the Vault VM
+- **params.vault_vm_type** - used to define the Cloud Config VM type that the Vault VM
   will be given. This VM type must exist in the Cloud config of the BOSH director that
   deploys Vault. This defaults to `small`.
-- **params.shield_network** - used to define the Cloud Config network that the Vault
+- **params.vault_network** - used to define the Cloud Config network that the Vault
   VM will be located on. This network must exist in the Cloud Config of the BOSH director
   that deploys Vault. It defaults to `vault`, but typically this can be located
   on a shared-infrastructure network.
