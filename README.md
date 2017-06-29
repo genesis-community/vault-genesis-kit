@@ -65,6 +65,20 @@ Params
 
   For example: `secret/us/proto/shield/agent:public`
 
+Cloud Config
+------------
+
+By default, Vault uses the following VM types/networks/disk pools from your
+Cloud Config. Feel free to override them in your environment, if you would
+rather they use entities already existing in your Cloud Foundry:
+
+```
+params:
+  vault_network:   vault
+  vault_disk_pool: vault # should be at least 1GB
+  vault_vm_type:   small # VMs should have at least 1 CPU, and 1GB of memory
+```
+
 [1]: https://vaultproject.io
 [2]: https://github.com/cloudfoundry-community/safe-boshrelease
 [3]: https://github.com/jhunt/go-strongbox
