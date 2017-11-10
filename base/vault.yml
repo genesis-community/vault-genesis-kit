@@ -10,6 +10,15 @@ instance_groups:
   networks:
   - name: (( grab params.vault_network ))
     static_ips: (( static_ips(0, 1, 2) ))
+  properties:
+    safe:
+      cluster_ips: (( grab instance_groups.vault.networks[0].static_ips ))
+      peer:
+        tls:
+          certificate: (( vault meta.vault "/certs/consul:certificate" ))
+          key:         (( vault meta.vault "/certs/consul:key" ))
+          ca:          (( vault meta.vault "/certs/ca:certificate" ))
+
 
 meta:
   vault: (( concat "secret/" params.vault ))
