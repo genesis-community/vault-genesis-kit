@@ -12,7 +12,6 @@ instance_groups:
     static_ips: (( static_ips(0, 1, 2) ))
   properties:
     safe:
-      cluster_ips: (( grab instance_groups.vault.networks[0].static_ips ))
       peer:
         tls:
           certificate: (( vault meta.vault "/certs/consul:certificate" ))
@@ -32,9 +31,9 @@ update:
 
 releases:
 - name: safe
-  version: 0.0.6
-  sha1: a83139d3b4ae64736f89cc921d46ce4c50d685e7
-  url: https://github.com/cloudfoundry-community/safe-boshrelease/releases/download/v0.0.6/safe-0.0.6.tgz
+  version: 0.1.0
+  sha1: 0251b18836750728b89bb95e615992ec84e99978
+  url: https://github.com/cloudfoundry-community/safe-boshrelease/releases/download/v0.1.0/safe-0.1.0.tgz
 
 stemcells:
 - os: (( grab params.stemcell_os ))
