@@ -1,14 +1,20 @@
+meta:
+  default:
+    azs: [z1, z2, z3]
+
 instance_groups:
 - name: vault
   jobs:
     - { release: safe,     name: vault }
   instances: 3
-  azs: (( grab params.availability_zones ))
-  persistent_disk_pool: (( grab params.vault_disk_pool ))
-  vm_type: (( grab params.vault_vm_type ))
+  azs:       (( grab params.availability_zones || meta.default.azs ))
+
+  persistent_disk_pool: (( grab params.vault_disk_pool || 'default' ))
+  vm_type:              (( grab params.vault_vm_type   || 'default' ))
+
   stemcell: default
   networks:
-  - name: (( grab params.vault_network ))
+  - name:       (( grab params.vault_network || 'vault' ))
     static_ips: (( static_ips(0, 1, 2) ))
   properties:
     safe:
@@ -19,8 +25,6 @@ instance_groups:
           ca:          (( vault meta.vault "/certs/ca:certificate" ))
 
 
-meta:
-  vault: (( concat "secret/" params.vault ))
 
 update:
   serial: true
@@ -36,6 +40,6 @@ releases:
   url: https://github.com/cloudfoundry-community/safe-boshrelease/releases/download/v0.1.0/safe-0.1.0.tgz
 
 stemcells:
-- os: (( grab params.stemcell_os ))
-  version: (( grab params.stemcell_version ))
-  alias: default
+- alias:   default
+  os:      (( grab params.stemcell_os      || 'ubuntu-trusty' ))
+  version: (( grab params.stemcell_version || 'latest' ))
