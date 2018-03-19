@@ -1,0 +1,20 @@
+#!/bin/bash
+set -eu
+
+(
+echo "---"
+echo "kit:"
+echo "  name:    $GENESIS_KIT_NAME"
+echo "  version: $GENESIS_KIT_VERSION"
+
+case "$(bosh_cpi)" in
+(azure*)
+	echo "  features:"
+	echo "    - azure"
+	;;
+esac
+
+echo "params:"
+echo "  env: $GENESIS_ENVIRONMENT"
+
+) >$GENESIS_ROOT/$GENESIS_ENVIRONMENT.yml

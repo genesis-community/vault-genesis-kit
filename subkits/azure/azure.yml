@@ -1,5 +1,0 @@
----
-instance_groups:
-- name: vault
-  vm_extensions:
-    - vault_as

@@ -1,0 +1,13 @@
+#!/bin/bash
+set -eu
+
+declare -a merge
+validate_features azure
+
+merge=( manifests/vault.yml )
+
+if want_feature azure; then
+	merge+=( manifests/azure.yml )
+fi
+
+echo "${merge[@]}"

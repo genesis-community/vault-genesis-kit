@@ -1,33 +1,10 @@
 ---
-name: vault
-homepage: https://github.com/cloudfoundry-community/safe-boshrelease
-github: https://github.com/genesis-community/vault-genesis-kit
-author: Geoff Franks <geoff@starkandwayne.com>
+name:   vault
+author: James Hunt <jhunt@starkandwayne.com>
+code:   https://github.com/genesis-community/vault-genesis-kit
+docs:   https://genesisporject.io/kits/vault
 
-subkits:
-- prompt: Are you deploying Vault on Azure?
-  subkit: azure
-
-- prompt: Do you want to install SHIELD on your Vault for backups?
-  subkit: shield
-
-params:
-  base:
-  - description: The name of the BOSH network to deploy Vault to
-    param: vault_network
-  - description: The name of the BOSH disk pool to give Vault
-    param: vault_disk_pool
-  - description: The name of the BOSH VM type for Vault to use
-    param: vault_vm_type
-
-  shield:
-  - ask: What is the Vault path to your SHIELD Agent public key?
-    description: |
-      This is usually something like `secret/path/to/keys/for/shield/agent:public`
-      If you are unsure, use `safe tree` to find it.
-    param: shield_key_vault_path
-
-credentials: {}
+genesis_version_min: 2.5.2
 
 certificates:
   base:
