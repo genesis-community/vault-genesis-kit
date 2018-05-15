@@ -1,13 +1,7 @@
 #!/bin/bash
 set -eu
 
-    echo "----------------------------------------------------"
-    echo "$GENESIS_ENVIRONMENT vault"
-    echo
-    echo "vault nodes:"
-         for ip in $(bosh vms --json | jq -r '.Tables[0].Rows[] | (.ips)'); do
-           echo "  https://$ip"
-         done
-    echo
-    echo "----------------------------------------------------"
-    echo
+echo "vault nodes:"
+for ip in $(bosh vms --json | jq -r '.Tables[0].Rows[] | (.ips)'); do
+  echo "  https://$ip"
+done
