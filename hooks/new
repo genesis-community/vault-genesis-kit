@@ -6,14 +6,7 @@ echo "---"
 echo "kit:"
 echo "  name:    $GENESIS_KIT_NAME"
 echo "  version: $GENESIS_KIT_VERSION"
-
-case "$(bosh_cpi)" in
-(azure*)
-	echo "  features:"
-	echo "    - azure"
-	;;
-esac
-
+echo
 echo "params:"
 echo "  env: $GENESIS_ENVIRONMENT"
 

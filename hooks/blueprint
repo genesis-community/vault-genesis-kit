@@ -2,12 +2,14 @@
 set -eu
 
 declare -a merge
-validate_features azure
+validate_features # none
 
 merge=( manifests/vault.yml )
 
-if want_feature azure; then
+case "$(bosh_cpi)" in
+(azure*)
 	merge+=( manifests/azure.yml )
-fi
+	;;
+esac
 
 echo "${merge[@]}"
