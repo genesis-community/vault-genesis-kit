@@ -23,6 +23,19 @@ credentials used elsewhere in deployments and applications.
   must be defined in your cloud config.  Defaults to `z1`, `z2`,
   and `z3`.
 
+# Cloud Configuration
+
+By default, Vault uses the following VM types/networks/disk pools from your
+cloud config. Feel free to override them in your environment, if you would
+rather they use entities already existing in your cloud config:
+
+```
+params:
+  vault_network:   vault
+  vault_disk_pool: vault # should be at least 1GB
+  vault_vm_type:   small # VMs should have at least 1 CPU, and 1GB of memory
+```
+
 # Available Features
 
 - `azure` - Replaces BOSH's native "availability zones"

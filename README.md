@@ -23,20 +23,6 @@ genesis init --kit vault/1.0.0
 genesis init --kit vault -d my-vault-configs
 ```
 
-Cloud Config
-------------
-
-By default, Vault uses the following VM types/networks/disk pools from your
-cloud config. Feel free to override them in your environment, if you would
-rather they use entities already existing in your cloud config:
-
-```
-params:
-  vault_network:   vault
-  vault_disk_pool: vault # should be at least 1GB
-  vault_vm_type:   small # VMs should have at least 1 CPU, and 1GB of memory
-```
-
 Learn More
 ----------
 
