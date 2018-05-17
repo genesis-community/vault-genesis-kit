@@ -17,11 +17,11 @@ if [[ $GENESIS_DEPLOY_RC == 0 ]]; then
       echo "Before you can use the Vault, you will need"
       echo "to initialize it first.  To do so, run"
       echo
-  describe "  #G{genesis do $GENESIS_ENVIRONMENT init}"
+  describe "  #G{genesis do $GENESIS_ENVIRONMENT -- init}"
       echo
       echo "If this was not the initial deployment of the"
       echo "Vault, you will need to unseal it, via"
       echo
-  describe "  #G{genesis do $GENESIS_ENVIRONMENT unseal}"
+  describe "  #G{genesis do $GENESIS_ENVIRONMENT -- unseal}"
       echo
 fi
