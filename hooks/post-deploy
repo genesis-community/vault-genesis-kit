@@ -3,6 +3,10 @@ set -eu
 
 if [[ $GENESIS_DEPLOY_RC == 0 ]]; then
 
+  if [[ -n "$GENESIS_PREDEPLOY_DATAFILE" && -f "$GENESIS_PREDEPLOY_DATAFILE" ]] ; then
+    safe -T $GENESIS_ENVIRONMENT unseal < $GENESIS_PREDEPLOY_DATAFILE
+  fi
+
       echo; echo;
   describe "#M{$GENESIS_ENVIRONMENT} Vault deployed!"
       echo
