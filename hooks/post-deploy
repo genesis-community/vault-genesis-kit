@@ -3,12 +3,18 @@ set -eu
 
 if [[ $GENESIS_DEPLOY_RC == 0 ]]; then
 
-  if [[ -n "$GENESIS_PREDEPLOY_DATAFILE" && -f "$GENESIS_PREDEPLOY_DATAFILE" ]] ; then
+      echo
+  describe "#M{$GENESIS_ENVIRONMENT} Vault deployed!"
+      echo
+
+  if [[ -f "$GENESIS_PREDEPLOY_DATAFILE" ]] ; then
+      echo "Unsealing the vault..."
     safe -T $GENESIS_ENVIRONMENT unseal < $GENESIS_PREDEPLOY_DATAFILE
+  else
+      echo "Unable to unseal the vault.  If this is a new deployment,"
+      echo "you will need to initalize the vault first."
   fi
 
-      echo; echo;
-  describe "#M{$GENESIS_ENVIRONMENT} Vault deployed!"
       echo
       echo "For details about the deployment, run"
       echo
