@@ -4,7 +4,7 @@ author: James Hunt <jhunt@starkandwayne.com>
 code:   https://github.com/genesis-community/vault-genesis-kit
 docs:   https://genesisporject.io/kits/vault
 
-genesis_version_min: 2.5.2
+genesis_version_min: 2.6.0
 
 certificates:
   base:
