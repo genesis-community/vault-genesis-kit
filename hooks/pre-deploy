@@ -1,0 +1,8 @@
+#!/bin/bash
+set -eu
+
+i=1
+(while safe exists "secret/vault/seal/keys:key$i"; do
+  safe read "secret/vault/seal/keys:key$i"
+  i="$((i+=1))"
+done) > "$GENESIS_PREDEPLOY_DATAFILE"

@@ -1,0 +1,84 @@
+#!/bin/bash
+set -eu
+
+list() {
+  echo "The following addons are defined:"
+  echo
+  echo "  init     Initialize a new Vault cluster, setting up a"
+  echo "           new set of seal keys, and an initial root token."
+  echo "           This should only be done once per deployment."
+  echo
+  echo "  target   Target the Vault and authenticate via root token."
+  echo
+  echo "  status   Determine Vault status: health, availability,"
+  echo "           and sealed / unsealed state."
+  echo
+  echo "  seal     Seal the Vault."
+  echo
+  echo "  unseal   Unseal the Vault."
+  echo
+}
+
+case $GENESIS_ADDON_SCRIPT in
+list)
+  list
+  exit 0
+  ;;
+
+init)
+  echo
+  for ip in $(bosh vms --json | jq -r '.Tables[0].Rows[] | (.ips)'); do
+    if curl -Lsk ${CURLOPTS:-} -m${TIMEOUT:-3} https://$ip >/dev/null 2>&1; then
+      describe "Attempting to #Y{initialize} Vault via node $ip"
+      safe target https://$ip -k $GENESIS_ENVIRONMENT
+      safe -T $GENESIS_ENVIRONMENT init
+      exit $?
+    fi
+  done
+  ;;
+
+target)
+  echo
+  for ip in $(bosh vms --json | jq -r '.Tables[0].Rows[] | (.ips)'); do
+    if curl -Lsk ${CURLOPTS:-} -m${TIMEOUT:-3} https://$ip >/dev/null 2>&1; then
+      safe target https://$ip -k $GENESIS_ENVIRONMENT
+      safe -T $GENESIS_ENVIRONMENT auth token
+      if safe -T $GENESIS_ENVIRONMENT read secret/handshake >/dev/null 2>&1; then
+        echo; describe "Retrieving #Y{status} of Vault via node $ip"
+        safe -T $GENESIS_ENVIRONMENT status
+        exit 0
+      fi
+      describe "#R{Authentication Failed} (or secret/handshake doesn't exist)"
+      exit 1
+    fi
+  done
+  exit 1
+  ;;
+
+status)
+  echo
+  (set -x
+   safe -T $GENESIS_ENVIRONMENT status)
+  exit $?
+  ;;
+
+seal)
+  echo
+  (set -x
+   safe -T $GENESIS_ENVIRONMENT seal)
+  exit $?
+  ;;
+
+unseal)
+  echo
+  (set -x
+   safe -T $GENESIS_ENVIRONMENT unseal)
+  exit $?
+  ;;
+
+*)
+  echo "Unrecognized Vault Genesis Kit addon."
+  list
+  exit 1
+  ;;
+esac

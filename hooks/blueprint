@@ -1,0 +1,15 @@
+#!/bin/bash
+set -eu
+
+declare -a merge
+validate_features # none
+
+merge=( manifests/vault.yml )
+
+case "$(bosh_cpi)" in
+(azure*)
+	merge+=( manifests/azure.yml )
+	;;
+esac
+
+echo "${merge[@]}"
