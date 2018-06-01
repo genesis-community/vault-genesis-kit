@@ -8,10 +8,10 @@ credentials used elsewhere in deployments and applications.
 
 - `vault_disk_pool` - The persistent disk pool that Vault VMs will
   use.  This pool must exist in your cloud config.  Defaults to
-  `vault`.
+  `default`.
 
 - `vault_vm_type` - What type of VM to deploy.  This type must
-  exist in your cloud config.  Defaults to `small`.
+  exist in your cloud config.  Defaults to `default`.
 
 - `vault_network` - What network to deploy Vault into.  This
   network must be defined in your cloud config.  Defaults to
