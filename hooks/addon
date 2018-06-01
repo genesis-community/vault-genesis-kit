@@ -57,22 +57,22 @@ target)
 
 status)
   echo
-  set -x
-  safe -T $GENESIS_ENVIRONMENT status
+  (set -x
+   safe -T $GENESIS_ENVIRONMENT status)
   exit $?
   ;;
 
 seal)
   echo
-  set -x
-  safe -T $GENESIS_ENVIRONMENT seal
+  (set -x
+   safe -T $GENESIS_ENVIRONMENT seal)
   exit $?
   ;;
 
 unseal)
   echo
-  set -x
-  safe -T $GENESIS_ENVIRONMENT unseal
+  (set -x
+   safe -T $GENESIS_ENVIRONMENT unseal)
   exit $?
   ;;
 
