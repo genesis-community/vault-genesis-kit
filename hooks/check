@@ -8,4 +8,10 @@ if [[ -n "$GENESIS_CLOUD_CONFIG" ]] ; then
     cloud_config_needs disk_type  $(lookup params.vault_disk_pool  default)
     check_cloud_config && describe "  cloud-config [#G{OK}]"
   fi
+
+  case "$(bosh_cpi)" in
+  (azure*)
+    cloud_config_needs vm_extension $(lookup params.azure_availability_set vault_as)
+    ;;
+  esac
 fi
