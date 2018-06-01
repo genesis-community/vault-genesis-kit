@@ -36,8 +36,8 @@ rather they use entities already existing in your cloud config:
 ```
 params:
   vault_network:   vault
-  vault_disk_pool: vault # should be at least 1GB
-  vault_vm_type:   small # VMs should have at least 1 CPU, and 1GB of memory
+  vault_disk_pool: default # should be at least 1GB
+  vault_vm_type:   default # VMs should have at least 1 CPU, and 1GB of memory
 ```
 
 
