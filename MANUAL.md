@@ -23,6 +23,10 @@ credentials used elsewhere in deployments and applications.
   must be defined in your cloud config.  Defaults to `z1`, `z2`,
   and `z3`.
 
+- `azure_availability_set` - In Microsoft Azure, this parameter
+  names the availability set to deploy the Vault nodes across.
+  This parameter does not have any effect on other platforms.
+
 # Cloud Configuration
 
 By default, Vault uses the following VM types/networks/disk pools from your
@@ -36,18 +40,6 @@ params:
   vault_vm_type:   small # VMs should have at least 1 CPU, and 1GB of memory
 ```
 
-# Available Features
-
-- `azure` - Replaces BOSH's native "availability zones"
-  configuration in favor of Azure's "availability set" concept.
-  This is required for HA and fault tolerance when running on
-  Microsoft Azure.  `genesis new` will auto-detect the need for
-  this feature, based on the BOSH director's CPI.
-
-  Activating this flag also activates the following parameters:
-
-  - `azure_availability_set` - The name of the availability set to
-    use for HA in Azure.  Defaults to `vault_as`.
 
 # Available Addons
 
