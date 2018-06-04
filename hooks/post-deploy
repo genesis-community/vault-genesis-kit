@@ -11,23 +11,19 @@ if [[ $GENESIS_DEPLOY_RC == 0 ]]; then
       echo "Unsealing the vault..."
     safe -T $GENESIS_ENVIRONMENT unseal < $GENESIS_PREDEPLOY_DATAFILE
   else
-      echo "Unable to unseal the vault.  If this is a new deployment,"
-      echo "you will need to initalize the vault first."
+  describe "Unable to unseal the vault.  If this is a new deployment," \
+           "you will need to initalize the vault first.  To do so, run" \
+           "" \
+           "  #G{genesis do $GENESIS_ENVIRONMENT -- init}" \
+           "" \
+           "If this was not the initial deployment of the" \
+           "Vault, you will need to unseal it, via" \
+           "" \
+           "  #G{genesis do $GENESIS_ENVIRONMENT -- unseal}" \
   fi
-
-      echo
-      echo "For details about the deployment, run"
-      echo
-  describe "  #G{genesis info $GENESIS_ENVIRONMENT}"
-      echo
-      echo "Before you can use the Vault, you will need"
-      echo "to initialize it first.  To do so, run"
-      echo
-  describe "  #G{genesis do $GENESIS_ENVIRONMENT -- init}"
-      echo
-      echo "If this was not the initial deployment of the"
-      echo "Vault, you will need to unseal it, via"
-      echo
-  describe "  #G{genesis do $GENESIS_ENVIRONMENT -- unseal}"
-      echo
+  describe "" \
+           "For details about the deployment, run" \
+           "" \
+           "  #G{genesis info $GENESIS_ENVIRONMENT}" \
+           ""
 fi
