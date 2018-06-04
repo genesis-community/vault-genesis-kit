@@ -1,3 +1,4 @@
-# remove me!
-### note:
-because of the ci revamp. the generate release notes will fail or give false info on the first release.
+# Improvements
+
+Post deploy only prints out init and unseal instructions if it couldn't
+automatically unseal the vault.
