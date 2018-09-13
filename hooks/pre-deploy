@@ -1,6 +1,23 @@
 #!/bin/bash
 set -eu
 
+# a quick explanation here:
+# secret/vault/seal/keys stores the vault's unseal keys they're placed
+# there by `safe init`, and it's for whizbang things like automatically
+# unsealing the vault after a redeploy.
+# now, this breaks down if you're already targeting a vault that's been
+# initialized via safe and go to deploy another vault, because it'll look
+# for seal keys in your existing vault, and pass them to `post-deploy`;
+# which will fail because it grabbed the wrong seal keys. which is why
+# it's necessary to set `params.auxiliary_vault` to true so that the
+# automatic unseal isn't attempted.
+#
+# note that this does not affect the "first" vault that's setup via
+# `safe local --memory` because that does not contain seal keys as
+# it's memory backed. so an unseal is not attempted because it
+# couldn't find the seal keys.
+#
+# it's like magic!
 i=1
 (while safe exists "secret/vault/seal/keys:key$i"; do
   safe read "secret/vault/seal/keys:key$i"
