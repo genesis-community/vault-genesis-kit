@@ -7,7 +7,7 @@ if [[ $GENESIS_DEPLOY_RC == 0 ]]; then
   describe "#M{$GENESIS_ENVIRONMENT} Vault deployed!"
       echo
 
-  if [[ -f "$GENESIS_PREDEPLOY_DATAFILE" ]] ; then
+  if [[ -f "$GENESIS_PREDEPLOY_DATAFILE" &&  $(lookup params.auxiliary_vault) != "true" ]] ; then
       echo "Unsealing the vault..."
     safe -T $GENESIS_ENVIRONMENT unseal < $GENESIS_PREDEPLOY_DATAFILE
   else
