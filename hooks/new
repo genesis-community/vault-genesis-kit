@@ -1,6 +1,10 @@
 #!/bin/bash
 set -eu
 
+# Skip auto unseal if auxiliary
+prompt_for genesis_vault boolean \
+  'Is this your Genesis Vault (for storing deployment credentials)?'
+
 (
 echo "---"
 echo "kit:"
@@ -10,11 +14,8 @@ echo
 echo "params:"
 echo "  env: $GENESIS_ENVIRONMENT"
 
-) >$GENESIS_ROOT/$GENESIS_ENVIRONMENT.yml
-
-# Skip auto unseal if auxiliary
-prompt_for auxiliary_vault boolean \
-	'Is this your Genesis Vault (for storing deployment credentials)?'
- if [ $auxiliary_vault != "true" ] ; then
-  echo "  auxiliary_vault: true" >>$GENESIS_ROOT/$GENESIS_ENVIRONMENT.yml
+if [ $genesis_vault != "true" ] ; then
+  echo "  auxiliary_vault: true"
 fi
+
+) >$GENESIS_ROOT/$GENESIS_ENVIRONMENT.yml
