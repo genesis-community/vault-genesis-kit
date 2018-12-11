@@ -23,6 +23,12 @@ credentials used elsewhere in deployments and applications.
   must be defined in your cloud config.  Defaults to `z1`, `z2`,
   and `z3`.
 
+- `stemcell_os` - The operating system stemcell you want to deploy
+  on. (default: `ubuntu-xenial`)
+  
+- `stemcell_version` - The specific version of the stemcell you want
+  to deploy on. (default: `latest`)
+
 - `azure_availability_set` - In Microsoft Azure, this parameter
   names the availability set to deploy the Vault nodes across.
   This parameter does not have any effect on other platforms.
