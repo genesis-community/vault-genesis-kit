@@ -36,9 +36,9 @@ update:
 
 releases:
 - name: safe
-  version: 0.1.0
-  sha1: 0251b18836750728b89bb95e615992ec84e99978
-  url: https://github.com/cloudfoundry-community/safe-boshrelease/releases/download/v0.1.0/safe-0.1.0.tgz
+  version: 0.2.0
+  url: https://github.com/cloudfoundry-community/safe-boshrelease/releases/download/v0.2.0/safe-0.2.0.tgz
+  sha1: 417956a970faa348aebc7afd4d1f029395bb3719
 
 stemcells:
 - alias:   default
