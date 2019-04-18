@@ -21,6 +21,7 @@ instance_groups:
     static_ips: (( static_ips(0, 1, 2) ))
   properties:
     safe:
+      ui: (( grab params.ui || true ))
       peer:
         tls:
           certificate: (( vault meta.vault "/certs/consul:certificate" ))

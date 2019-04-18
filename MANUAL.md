@@ -39,6 +39,8 @@ credentials used elsewhere in deployments and applications.
   to unseal the new Vault with the seal keys of the primary 
   Genesis Vault. Defaults to `false`.
 
+- `ui` - If true, the Vault Web UI will be turned on. Defaults to true.
+
 # Cloud Configuration
 
 By default, Vault uses the following VM types/networks/disk pools from your
