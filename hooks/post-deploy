@@ -9,7 +9,7 @@ if [[ $GENESIS_DEPLOY_RC == 0 ]]; then
 
   if [[ -f "$GENESIS_PREDEPLOY_DATAFILE" &&  $(lookup params.auxiliary_vault) != "true" ]] ; then
       echo "Unsealing the vault..."
-    safe -T $GENESIS_ENVIRONMENT unseal < $GENESIS_PREDEPLOY_DATAFILE
+    safe -T "$GENESIS_ENVIRONMENT" unseal < "$GENESIS_PREDEPLOY_DATAFILE"
   else
       echo "Unable to unseal the vault.  If this is a new deployment,"
       echo "you will need to initalize the vault first."
@@ -20,14 +20,26 @@ if [[ $GENESIS_DEPLOY_RC == 0 ]]; then
       echo
   describe "  #G{genesis info $GENESIS_ENVIRONMENT}"
       echo
-      echo "Before you can use the Vault, you will need"
-      echo "to initialize it first.  To do so, run"
+      echo "Before you can use the Vault, you will need to initialize it"
+      echo "first.  To do so, run"
       echo
   describe "  #G{genesis do $GENESIS_ENVIRONMENT -- init}"
       echo
-      echo "If this was not the initial deployment of the"
-      echo "Vault, you will need to unseal it, via"
+      echo "If this was not the initial deployment of the Vault, you will"
+      echo "need to unseal it, via"
       echo
   describe "  #G{genesis do $GENESIS_ENVIRONMENT -- unseal}"
+      echo
+      echo "This version of Vault supports versioning secrets, but it is"
+      echo "disabled by default.  To turn it on, you must run"
+      echo
+  describe "  #G{safe vault kv enable-versioning secret}"
+      echo
+      echo "You will need to be authorised with the root token, and have"
+      echo "Vault v0.11.0 or higher installed locally to perform this."
+      echo
+  describe "#Y{NOTE:} Once versioning is turned on for a secrets backend, it"
+      echo "cannot be turned off without deleting and recreating that"
+      echo "backend."
       echo
 fi
