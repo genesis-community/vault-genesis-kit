@@ -1,15 +1,9 @@
 ---
 kit:
-  subkits: []
+  features: []
 
 params:
   env:   ci-baseline
-  vault: genesis-ci/vault/ci/baseline
   bosh:  genesis-ci
-  auxiliary_vault: true
 
-  vault_network: genesis-ci
-  vault_vm_type: small
-  availability_zones:
-    - (( replace ))
-    - z1
+  auxiliary_vault: true
