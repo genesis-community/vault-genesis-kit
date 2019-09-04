@@ -12,7 +12,7 @@ instance_groups:
   instances: 3
   azs:       (( grab params.availability_zones || meta.default.azs ))
 
-  persistent_disk_pool: (( grab params.vault_disk_pool || "default" ))
+  persistent_disk_type: (( grab params.vault_disk_pool || "default" ))
   vm_type:              (( grab params.vault_vm_type   || "default" ))
 
   stemcell: default
