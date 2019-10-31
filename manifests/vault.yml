@@ -8,7 +8,17 @@ exodus:
 instance_groups:
 - name: vault
   jobs:
-    - { release: safe,     name: vault }
+  - name: vault
+    release: safe
+    properties:
+      safe:
+        ui: (( grab params.ui || true ))
+        peer:
+          tls:
+            certificate: (( vault meta.vault "/certs/consul:certificate" ))
+            key:         (( vault meta.vault "/certs/consul:key" ))
+            ca:          (( vault meta.vault "/certs/ca:certificate" ))
+
   instances: 3
   azs:       (( grab params.availability_zones || meta.default.azs ))
 
@@ -19,14 +29,6 @@ instance_groups:
   networks:
   - name:       (( grab params.vault_network || "vault" ))
     static_ips: (( static_ips(0, 1, 2) ))
-  properties:
-    safe:
-      ui: (( grab params.ui || true ))
-      peer:
-        tls:
-          certificate: (( vault meta.vault "/certs/consul:certificate" ))
-          key:         (( vault meta.vault "/certs/consul:key" ))
-          ca:          (( vault meta.vault "/certs/ca:certificate" ))
 
 update:
   serial: true
