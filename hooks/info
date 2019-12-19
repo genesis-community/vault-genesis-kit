@@ -5,3 +5,6 @@ echo "vault nodes:"
 for ip in $(bosh vms --json | jq -r '.Tables[0].Rows[] | (.ips)'); do
   echo "  https://$ip"
 done
+
+echo "secret mounts"
+  safe -T $GENESIS curl /sys/internal/ui/mounts | tail -n +7 | jq -r '.data.secret | with_entries(select(.value.type == "kv" or .value.type == "generic")) | to_entries[] | "\(.key) \(.value | .type) \(.value | .options  |.version)"'

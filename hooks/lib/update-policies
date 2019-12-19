@@ -1,0 +1,91 @@
+#!/bin/bash
+
+set -e
+
+reset-concourse-credentials() {
+	role=$1
+
+	echo "Generating new secret-id for $role, and saving it to Vault"
+
+	# Set role-id
+	safe paste secret/concourse/$role role_id<<EOF
+$(safe read auth/approle/role/$role/role-id | spruce json | jq -r .role_id)
+EOF
+	# get a new secret-id + save it
+	safe paste secret/concourse/$role secret_id <<EOF
+$(safe vault write -f -format=json auth/approle/role/$role/secret-id | jq -r '.data.secret_id')
+EOF
+}
+
+add-concourse-roles() {
+	for role in $@; do
+		if [[ ! -f $role.hcl ]]; then
+			echo "Error updating app-role \`$role' for concourse. No \`$role.hcl' file is present"
+			exit 1
+		fi
+		safe vault policy-write $role $role.hcl
+		safe vault write auth/approle/role/$role secret_id_ttl=0 token_num_uses=0 token_ttl=1m token_max_ttl=1m secret_id_num_uses=0 policies=$role
+
+		if ! safe exists secret/concourse/$role; then
+			reset-concourse-credentials $role
+		fi
+	done
+}
+
+add-users() {
+	for user in $@; do
+		if [[ ! -f $role.hcl ]]; then
+			echo "Error updating policy for user \`$usere'. No \`$user.hcl' file is present"
+			exit 1
+		fi
+		safe vault policy-write $user $user.hcl
+		if ! safe exists secret/vault_users/$user; then
+			echo "Generating a new password for $user and saving it to Vault"
+			safe gen secret/vault_users/$user password
+		fi
+		# safe write outputs the password, and we don't want to see it
+		safe vault write auth/userpass/users/$user policies=$user password=$(safe get secret/vault_users/$user:password)
+	done
+}
+
+usage() {
+cat <<EOF
+$0 [--rotate <concourse-pipeline>]
+
+By default $0 will run through defined concourse pipelines + Vault users,
+generating/updating app-role and user credentials, as well as policies.
+It is safe to run multiple-times, and should not overwrite user credentials.
+App-role credential rotation may be requested.
+
+    --rotate         Rotates the credentials for an app-role associated with
+                     a pipeline. Feed it the pipeline name.
+EOF
+exit 1
+}
+
+if [[ "$1" == "--rotate" ]]; then
+	if [[ -z $2 ]]; then
+		usage;
+	fi
+	reset-concourse-credentials $2
+	exit
+fi
+
+if [[ ! -z $1 ]]; then
+	usage
+fi
+
+add-concourse-roles \
+	bosh-deployments \
+	cf-deployments \
+	jumpbox-deployments \
+	logsearch-deployments \
+	shield-deployments \
+	vault-deployments\
+	cf-rabbitmq-deployments \
+	nfs-broker-deployments \
+	prometheus-deployments
+
+add-users \
+  dbell \
+  another

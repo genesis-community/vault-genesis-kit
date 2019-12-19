@@ -19,3 +19,5 @@ if [ $genesis_vault != "true" ] ; then
 fi
 
 ) >$GENESIS_ROOT/$GENESIS_ENVIRONMENT.yml
+
+offer_environment_editor

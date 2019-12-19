@@ -19,6 +19,67 @@ list() {
   echo
 }
 
+current_target_alias="$(SAFE_TARGET='' safe target --json | jq -r '.name')"
+
+vault_worker_ips() {
+  bosh vms --json | jq -r '.Tables[0].Rows[] | (.ips)'
+}
+
+vault_ip() {
+  if [[ -z "$__VAULT_IP" ]] ; then
+    for ip in $(vault_worker_ips); do
+      # shellcheck disable=SC2086
+      if curl -Lsk ${CURLOPTS:-} -m"${TIMEOUT:-3}" https://"$ip" >/dev/null 2>&1; then
+        __VAULT_IP="$ip"
+        return
+      fi
+    done
+  fi
+  echo "$__VAULT_IP";
+}
+
+has_env_target() {
+  # See if there is an existing target for this environment
+  all_targets="$(SAFE_TARGET='' safe targets --json)"
+  potential_targets=""
+  for ip in $(vault_worker_ips) ; do
+    potential_targets="$potential_targets$'\n'$(echo "$all_targets" | jq --arg url "https://$ip" '.[] | select(.url == $url)')"
+  done
+  case "$(echo "$potential_targets"  | jq -s '. | length')" in
+    0) return ;;
+    1) echo "$potential_targets" | jq -s '. | first | .name' ; return ;;
+    *) echo "$potential_targets" | jq -s --arg env_name "$GENESIS_ENVIRONMENT" '.[] | select(.name == $env_name) | .name' ;;
+  esac
+}
+
+ensure_target_exists() {
+  alias="$(has_env_target)"
+  if [[ -z "$alias" ]] ; then
+    existing="$(SAFE_TARGET='' safe targets --json | jq --arg name "$GENESIS_ENVIRONMENT" '. | select(.name == $name)')"
+    if [[ -n "$existing" ]] ; then
+      # The alias exist, but is pointing to something other than one of the vaults worker ips
+      local overwrite
+      prompt_for overwrite boolean \
+        "The Vault target alias '$GENESIS_ENVIRONMENT' exists, but is pointing at '$(echo "$existing" | jq -r '.url')'" \
+        "instead of one of this environment worker IPs.  Would you like to overwrite this target?" \
+        --inline
+      echo
+      [[ $overwrite == 'false' ]] && bail "Cannot continue with a mismatched safe target"
+    fi
+    create_env_target
+    ENVIRONMENT_ALIAS="$GENESIS_ENVIRONMENT"
+  else
+    [[ "$alias" != "$GENESIS_ENVIRONMENT" ]] && \
+      describe "#Y{[WARNING]} This vault is being targeted by safe target #C{$alias} instead of using #C{$GENESIS_ENVIRONMENT} as the alias" ""
+    ENVIRONMENT_ALIAS="$alias"
+  fi
+}
+
+create_env_target() {
+  SAFE_TARGET='' safe target https://"$(vault_ip)" -k "$GENESIS_ENVIRONMENT"
+  [[ -n $current_target_alias ]] && SAFE_TARGET='' safe target "$current_target_alias"
+}
+
 case $GENESIS_ADDON_SCRIPT in
 list)
   list
@@ -27,52 +88,48 @@ list)
 
 init)
   echo
-  for ip in $(bosh vms --json | jq -r '.Tables[0].Rows[] | (.ips)'); do
-    if curl -Lsk ${CURLOPTS:-} -m${TIMEOUT:-3} https://$ip >/dev/null 2>&1; then
-      describe "Attempting to #Y{initialize} Vault via node $ip"
-      safe target https://$ip -k $GENESIS_ENVIRONMENT
-      safe -T $GENESIS_ENVIRONMENT init
-      exit $?
-    fi
-  done
+  ensure_target_exists # sets $ENVIRONMENT_ALIAS or dies
+  describe "Attempting to #Y{initialize} Vault via node $ip"
+  SAFE_TARGET="$ENVIRONMENT_ALIAS" safe init
+  exit $?
   ;;
 
 target)
   echo
-  for ip in $(bosh vms --json | jq -r '.Tables[0].Rows[] | (.ips)'); do
-    if curl -Lsk ${CURLOPTS:-} -m${TIMEOUT:-3} https://$ip >/dev/null 2>&1; then
-      safe target https://$ip -k $GENESIS_ENVIRONMENT
-      safe -T $GENESIS_ENVIRONMENT auth token
-      if safe -T $GENESIS_ENVIRONMENT read secret/handshake >/dev/null 2>&1; then
-        echo; describe "Retrieving #Y{status} of Vault via node $ip"
-        safe -T $GENESIS_ENVIRONMENT status
-        exit 0
-      fi
-      describe "#R{Authentication Failed} (or secret/handshake doesn't exist)"
-      exit 1
-    fi
-  done
+  ensure_target_exists  # sets $ENVIRONMENT_ALIAS or dies
+  export SAFE_TARGET=''
+  safe target "$ENVIRONMENT_ALIAS"
+  safe -T "$ENVIRONMENT_ALIAS" auth token
+  if safe -T "$ENVIRONMENT_ALIAS" read secret/handshake >/dev/null 2>&1; then
+    echo; describe "Retrieving #Y{status} of Vault via node $ip"
+    safe -T "$ENVIRONMENT_ALIAS" status
+    exit 0
+  fi
+  describe "#R{Authentication Failed} (or secret/handshake doesn't exist)"
   exit 1
   ;;
 
 status)
   echo
+  ensure_target_exists # sets $ENVIRONMENT_ALIAS or dies
   (set -x
-   safe -T $GENESIS_ENVIRONMENT status)
+   safe -T "$GENESIS_ENVIRONMENT" status)
   exit $?
   ;;
 
 seal)
   echo
+  ensure_target_exists # sets $ENVIRONMENT_ALIAS or dies
   (set -x
-   safe -T $GENESIS_ENVIRONMENT seal)
+   safe -T "$GENESIS_ENVIRONMENT" seal)
   exit $?
   ;;
 
 unseal)
   echo
+  ensure_target_exists # sets $ENVIRONMENT_ALIAS or dies
   (set -x
-   safe -T $GENESIS_ENVIRONMENT unseal)
+   safe -T "$GENESIS_ENVIRONMENT" unseal)
   exit $?
   ;;
 
