@@ -1,5 +1,7 @@
 ---
 name:   vault
+version: 1.6.0
+
 author: James Hunt <jhunt@starkandwayne.com>
 code:   https://github.com/genesis-community/vault-genesis-kit
 docs:   https://genesisporject.io/kits/vault
@@ -14,4 +16,9 @@ certificates:
         valid_for: 10y
         names:
           - consul_vault_peer
+          - 127.0.0.1
+      vault:
+        valid_for: 2y
+        names:
+          - "${meta.domain}"
           - 127.0.0.1
