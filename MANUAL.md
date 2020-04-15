@@ -41,6 +41,8 @@ credentials used elsewhere in deployments and applications.
 
 - `ui` - If true, the Vault Web UI will be turned on. Defaults to true.
 
+- `vault_domain` - Domain for vault certs to be signed for. Defaults to `vault.bosh`
+
 # Cloud Configuration
 
 By default, Vault uses the following VM types/networks/disk pools from your

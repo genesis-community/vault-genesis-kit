@@ -1,6 +1,7 @@
 meta:
   default:
     azs: [z1, z2, z3]
+  domain: (( grab params.vault_domain || "vault.bosh" ))
 
 exodus:
   ips: (( grab instance_groups.vault.networks[0].static_ips ))
@@ -18,6 +19,9 @@ instance_groups:
             certificate: (( vault meta.vault "/certs/consul:certificate" ))
             key:         (( vault meta.vault "/certs/consul:key" ))
             ca:          (( vault meta.vault "/certs/ca:certificate" ))
+        tls:
+          certificate: (( vault meta.vault "/certs/vault:certificate" ))
+          key:         (( vault meta.vault "/certs/vault:key" ))
 
   instances: 3
   azs:       (( grab params.availability_zones || meta.default.azs ))
@@ -39,9 +43,9 @@ update:
 
 releases:
   - name:    safe
-    version: 0.2.1
-    url:     https://github.com/cloudfoundry-community/safe-boshrelease/releases/download/v0.2.1/safe-0.2.1.tgz
-    sha1:    7da89b2a385c3dfe3dc647844a61e8b531e6e54b
+    version: 0.3.0
+    url:     https://github.com/cloudfoundry-community/safe-boshrelease/releases/download/v0.3.0/safe-0.3.0.tgz
+    sha1:    ee009da0398ec1688ccfe830d68957be49571b0a
 
 stemcells:
   - alias:   default
