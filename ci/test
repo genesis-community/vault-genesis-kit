@@ -37,4 +37,6 @@ cd ..
 genesis add-secrets ci-baseline
 genesis deploy -y ci-baseline
 $BOSH -d ci-baseline-${KIT} instances --ps
+genesis do ci-baseline init
+safe get secret/vault/seal/keys
 cleanup ci-baseline-${KIT}
