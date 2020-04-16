@@ -11,11 +11,14 @@ echo "kit:"
 echo "  name:    $GENESIS_KIT_NAME"
 echo "  version: $GENESIS_KIT_VERSION"
 echo
-echo "params:"
-echo "  env: $GENESIS_ENVIRONMENT"
+
+genesis_config_block
 
 if [ $genesis_vault != "true" ] ; then
+  echo "params:"
   echo "  auxiliary_vault: true"
+else
+  echo "params: {}"
 fi
 
 ) >$GENESIS_ROOT/$GENESIS_ENVIRONMENT.yml
