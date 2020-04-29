@@ -4,7 +4,7 @@ version: 1.6.0
 
 author: James Hunt <jhunt@starkandwayne.com>
 code:   https://github.com/genesis-community/vault-genesis-kit
-docs:   https://genesisporject.io/kits/vault
+docs:   https://genesisproject.io/docs/
 
 genesis_version_min: 2.7.0
 
