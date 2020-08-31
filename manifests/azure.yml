@@ -6,4 +6,4 @@ meta:
 instance_groups:
   - name: vault
     vm_extensions:
-      - (( grab param.azure_availability_set || "vault_as" ))
+      - (( grab params.azure_availability_set || "vault_as" ))
