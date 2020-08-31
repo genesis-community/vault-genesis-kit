@@ -4,7 +4,8 @@ set -eu
 declare -a merge
 validate_features # none
 
-merge=( manifests/vault.yml )
+merge=( manifests/vault.yml
+        manifests/releases/safe.yml )
 
 case "$(bosh_cpi)" in
 (azure*)
