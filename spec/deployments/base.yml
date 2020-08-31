@@ -1,0 +1,9 @@
+---
+kit:
+  features: []
+
+genesis:
+  env:   base
+
+params:
+  auxiliary_vault: true

@@ -1,0 +1,51 @@
+exodus:
+  ips:
+  - 10.99.0.16
+  - 10.99.0.17
+  - 10.99.0.18
+instance_groups:
+- azs:
+  - z1
+  - z2
+  - z3
+  instances: 3
+  jobs:
+  - name: vault
+    properties:
+      safe:
+        peer:
+          tls:
+            ca: <!{meta.vault}/certs/ca:certificate!>
+            certificate: <!{meta.vault}/certs/consul:certificate!>
+            key: <!{meta.vault}/certs/consul:key!>
+        tls:
+          certificate: <!{meta.vault}/certs/vault:certificate!>
+          key: <!{meta.vault}/certs/vault:key!>
+        ui: true
+    release: safe
+  name: vault
+  networks:
+  - name: vault
+    static_ips:
+    - 10.99.0.16
+    - 10.99.0.17
+    - 10.99.0.18
+  persistent_disk_type: default
+  stemcell: default
+  vm_type: default
+name: base-vault
+releases:
+- name: safe
+  sha1: ee009da0398ec1688ccfe830d68957be49571b0a
+  url: https://github.com/cloudfoundry-community/safe-boshrelease/releases/download/v0.3.0/safe-0.3.0.tgz
+  version: 0.3.0
+stemcells:
+- alias: default
+  os: ubuntu-xenial
+  version: latest
+update:
+  canaries: 1
+  canary_watch_time: 30000-120000
+  max_in_flight: 1
+  serial: true
+  update_watch_time: 30000-120000

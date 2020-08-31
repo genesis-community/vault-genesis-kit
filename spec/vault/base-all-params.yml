@@ -1,0 +1,14 @@
+secret/base/all/params/vault/certs/ca:
+  certificate: <!{meta.vault}/certs/ca:certificate!>
+  combined: <!{meta.vault}/certs/ca:combined!>
+  crl: <!{meta.vault}/certs/ca:crl!>
+  key: <!{meta.vault}/certs/ca:key!>
+  serial: <!{meta.vault}/certs/ca:serial!>
+secret/base/all/params/vault/certs/consul:
+  certificate: <!{meta.vault}/certs/consul:certificate!>
+  combined: <!{meta.vault}/certs/consul:combined!>
+  key: <!{meta.vault}/certs/consul:key!>
+secret/base/all/params/vault/certs/vault:
+  certificate: <!{meta.vault}/certs/vault:certificate!>
+  combined: <!{meta.vault}/certs/vault:combined!>
+  key: <!{meta.vault}/certs/vault:key!>

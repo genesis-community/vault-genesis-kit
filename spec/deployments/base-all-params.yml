@@ -1,0 +1,19 @@
+---
+kit:
+  features: []
+
+genesis:
+  env:   base-all-params
+
+params:
+  auxiliary_vault: true
+
+  vault_domain: test.domain.com
+  vault_network: test-network
+  vault_vm_type: test-vm-type
+  vault_disk_pool: test-disk-type
+  availability_zones: 
+    - z1
+  ui: false
+  stemcell_os: test-stemcell
+  stemcell_version: 9.9.9

@@ -1,0 +1,10 @@
+---
+kit:
+  features: []
+
+genesis:
+  env:   azure
+
+params:
+  auxiliary_vault: true
+  azure_availability_set: test-set
