@@ -1,0 +1,26 @@
+jobs:
+- name: safe-release
+  public: true
+  serial: true
+  serial_groups: [bosh-release]
+  plan:
+    - do:
+      - in_parallel:
+        - { get: git, trigger: false, passed: [spec-tests] }
+        - { get: git-ci, trigger: false }
+        - get: bosh-release-safe
+          trigger: true
+          params:
+            tarball: false
+      - task: update-bosh-release
+        file: git-ci/ci/tasks/update-bosh-release/task.yml
+        input_mapping:
+          bosh-release: bosh-release-safe
+        params:
+          OPS_FILE_PATH: manifests/releases/safe.yml
+          RELEASE_NAME: safe
+          BRANCH: (( grab meta.github.branch ))
+      - put: git
+        params:
+          merge: true
+          repository: pushme
