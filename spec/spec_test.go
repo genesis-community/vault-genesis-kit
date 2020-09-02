@@ -29,7 +29,7 @@ var _ = Describe("Concourse Kit", func() {
 		Test(Environment{
 			Name:        "azure",
 			CloudConfig: "aws",
-			CPI:         "azure", //TODO: fix cpi
+			CPI:         "azure",
 		})
 	})
 })

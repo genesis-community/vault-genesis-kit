@@ -2,8 +2,9 @@
 kit:
   features: []
 
-params:
+genesis:
   env:   ci-baseline
   bosh:  snw-genesis-ci
 
+params:
   auxiliary_vault: true
