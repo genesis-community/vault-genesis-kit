@@ -39,19 +39,28 @@ init)
 
 target)
   echo
-  for ip in $(bosh vms --json | jq -r '.Tables[0].Rows[] | (.ips)'); do
-    if curl -Lsk ${CURLOPTS:-} -m${TIMEOUT:-3} https://$ip >/dev/null 2>&1; then
-      safe target https://$ip -k $GENESIS_ENVIRONMENT
-      safe -T $GENESIS_ENVIRONMENT auth token
-      if safe -T $GENESIS_ENVIRONMENT read secret/handshake >/dev/null 2>&1; then
-        echo; describe "Retrieving #Y{status} of Vault via node $ip"
-        safe -T $GENESIS_ENVIRONMENT status
-        exit 0
+  domain="$(lookup 'params.vault_domain' '')"
+  method="${1:-token}"
+  if [[ -z "$domain" ]] ; then
+    for ip in $(bosh vms --json | jq -r '.Tables[0].Rows[] | (.ips)'); do
+      if curl -Lsk ${CURLOPTS:-} -m${TIMEOUT:-3} https://$ip >/dev/null 2>&1; then
+        domain="$ip"
+        break
       fi
-      describe "#R{Authentication Failed} (or secret/handshake doesn't exist)"
-      exit 1
+    done
+    if [[ -z "$domain" ]] ; then
+      exit 1;
     fi
-  done
+  fi
+
+  SAFE_TARGET='' safe target https://$domain -k $GENESIS_ENVIRONMENT
+  safe -T $GENESIS_ENVIRONMENT auth $method
+  if safe -T $GENESIS_ENVIRONMENT read secret/handshake >/dev/null 2>&1; then
+    describe "" "Retrieving #Y{status} of Vault"
+    safe -T $GENESIS_ENVIRONMENT status
+    exit 0
+  fi
+  describe "#R{Authentication Failed} (or secret/handshake doesn't exist)"
   exit 1
   ;;
 
