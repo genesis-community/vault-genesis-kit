@@ -26,10 +26,11 @@ if [[ $GENESIS_DEPLOY_RC == 0 ]]; then
            "" \
            "  #G{genesis info $GENESIS_ENVIRONMENT}" \
            ""
-  if safe vault secrets list --detailed | grep ^secret/ | grep 'map\[version:1\]' ; then
+  if safe vault secrets list --detailed | grep ^secret/ | grep -q 'map\[version:1\]' ; then
+  describe -- \
            "---" \
            "" \
-           "This version of Vault supports versioning secrets, but it does not automatically"
+           "This version of Vault supports versioning secrets, but it does not automatically" \
            "update existing KV Secret Engine mounts.  To turn it on, you must run" \
            "" \
            "  #G{safe vault kv enable-versioning secret}" \
