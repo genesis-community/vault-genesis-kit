@@ -17,6 +17,19 @@ credentials used elsewhere in deployments and applications.
   network must be defined in your cloud config.  Defaults to
   `vault`.
 
+- `vault_domain` - Domain for vault certs to be signed for. Defaults to `vault.bosh`
+
+- `ips` - If you want to have full control over the number of instances to
+  deploy to, just specify the IPs of those instances in a list and those will
+  be what is deployed.  Specify one IP, one vm will be used; specify 5, 5 vms
+  will be created.
+
+  NOTE:  Fault tolerance of Vault is N/2+1 remaining instances, so even-counts
+  of VMs don't increase fault tolerance over one less than that count.  For
+  this reason, it is recommended that odd-counts of IPs are specified.  See
+  https://www.consul.io/docs/architecture/consensus#deployment-table for full
+  details.
+
 - `availability_zones` - What BOSH HA availability zones to deploy
   the Vault across.  The chosen network must have at least one
   subnet in each of the listed zones, and the zones themselves
@@ -40,8 +53,6 @@ credentials used elsewhere in deployments and applications.
   Genesis Vault. Defaults to `false`.
 
 - `ui` - If true, the Vault Web UI will be turned on. Defaults to true.
-
-- `vault_domain` - Domain for vault certs to be signed for. Defaults to `vault.bosh`
 
 # Cloud Configuration
 
@@ -84,9 +95,10 @@ kit:
   name: vault
   version: 1.2.0
 
-params:
+genesis:
   env: acme-us-east-1-prod
 
+params:
   vault_network:   credstore
   vault_disk_pool: encrypted
   vault_vm_type:   std.small.1c.2gb

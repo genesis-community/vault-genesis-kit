@@ -7,6 +7,24 @@ validate_features # none
 merge=( manifests/vault.yml
         manifests/releases/safe.yml )
 
+ips="$(lookup params.ips '')"
+if [[ -n "$ips" ]] ; then
+  instance_count="$(echo "$ips" | jq -r '.|length')"
+  (
+    cat <<EOF
+exodus:
+  ips: $ips
+
+instance_groups:
+- name: vault
+  instances: $instance_count
+  networks:
+  - name:       (( grab params.vault_network || "vault" ))
+    static_ips: $ips
+EOF
+  ) > manifests/static_ips.yml
+  merge+=( manifests/static_ips.yml )
+fi
 case "$(bosh_cpi)" in
 (azure*)
 	merge+=( manifests/azure.yml )
