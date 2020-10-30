@@ -18,8 +18,12 @@ set -eu
 # couldn't find the seal keys.
 #
 # it's like magic!
+
+# FIXME: Only grab unseal keys if you ARE the target vault
 i=1
 (while safe exists "secret/vault/seal/keys:key$i"; do
   safe read "secret/vault/seal/keys:key$i"
   i="$((i+=1))"
 done) > "$GENESIS_PREDEPLOY_DATAFILE"
+[[ -s "$GENESIS_PREDEPLOY_DATAFILE" ]] || rm "$GENESIS_PREDEPLOY_DATAFILE"
+exit 0

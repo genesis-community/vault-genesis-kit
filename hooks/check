@@ -1,12 +1,12 @@
 #!/bin/bash
 
 # Cloud Config checks
+ok=yes
 if [[ -n "$GENESIS_CLOUD_CONFIG" ]] ; then
   if ! want_feature proto; then
     cloud_config_needs vm_type    $(lookup params.vault_vm_type    default)
     cloud_config_needs network    $(lookup params.vault_network    vault)
     cloud_config_needs disk_type  $(lookup params.vault_disk_pool  default)
-    check_cloud_config && describe "  cloud-config [#G{OK}]"
   fi
 
   case "$(bosh_cpi)" in
@@ -14,4 +14,14 @@ if [[ -n "$GENESIS_CLOUD_CONFIG" ]] ; then
     cloud_config_needs vm_extension $(lookup params.azure_availability_set vault_as)
     ;;
   esac
+
+  if check_cloud_config ; then
+    describe "  cloud-config [#G{OK}]"
+  else
+    describe "  cloud-config [#R{FAILED}]"
+    ok=no
+  fi
+fi
+if [[ "$ok" != 'yes' ]] ; then
+  exit 1
 fi
