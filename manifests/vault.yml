@@ -5,6 +5,7 @@ meta:
 
 exodus:
   ips: (( grab instance_groups.vault.networks[0].static_ips ))
+  domain: (( grab meta.domain ))
 
 instance_groups:
 - name: vault
