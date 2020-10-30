@@ -70,16 +70,16 @@ params:
 
 # Available Addons
 
-- `init` - Initializes the Vault cluster.  This can only be run
-  once, as it formats the Vault storage and generates seal keys
-  for protecting the Vault.
+- `init` - Initializes the Vault cluster.  This can only be run once, as it
+  formats the Vault storage and generates seal keys for protecting the Vault.
 
-- `target` - Sets up a `safe` target for this Vault, named after
-  the environment, and prompts for initial root token
-  authentication.
+- `target` - Sets up a `safe` target for this Vault, named after the
+  environment, and prompts for authentication.  Takes an optional
+  `<auth-type>` argument to specify the auth method, such as `github` or
+  `userpass`, defaulting to `token` if not provided.
 
-- `status` - Determine Vault status: health, availability, and
-  sealed / unsealed state.
+- `status` - Determine Vault status: health, availability, and sealed /
+  unsealed state.
 
 - `seal` - Seals the Vault.
 
