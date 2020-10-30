@@ -1,4 +1,5 @@
 exodus:
+  domain: vault.bosh
   ips:
   - 10.99.0.16
   - 10.99.0.17
