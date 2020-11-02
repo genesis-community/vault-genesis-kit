@@ -21,7 +21,7 @@ need_command() {
   fi
 }
 
-cd $(dirname $BASH_SOURCE[0])
+cd $(dirname ${BASH_SOURCE[0]})
 echo "Working in $(pwd)"
 need_command spruce "https://github.com/geofffranks/spruce/releases"
 need_command jq

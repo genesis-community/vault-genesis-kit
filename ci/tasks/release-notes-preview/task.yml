@@ -1,0 +1,14 @@
+platform: linux
+
+image_resource:
+  type: registry-image
+  source:
+    repository: (( grab meta.image.name ))
+    tag:        (( grab meta.image.tag ))
+
+inputs:
+    - { name: git }
+    - { name: git-ci }
+
+run:
+  path: git-ci/ci/tasks/release-notes-preview/task

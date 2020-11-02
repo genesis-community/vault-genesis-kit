@@ -2,7 +2,7 @@
 meta:
   kit:     vault
   release: Vault Genesis Kit
-  target:  pipes@genesis
+  target:  genesis@pipes
   url:     https://pipes.starkandwayne.com
   exposed: yes
 

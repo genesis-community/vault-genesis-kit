@@ -2,7 +2,7 @@
 
 set -e
 set -o pipefail
-# set -x
+shopt -s nullglob
 
 custom_notes=$(pwd)/git-ci/ci/release_notes.md
 notes=$(pwd)/release-notes/notes.md
@@ -11,28 +11,27 @@ touch ${custom_notes}
 cp ${custom_notes} ${notes}
 
 get_releases() {
-    spruce merge --go-patch manifests/releases/*.yml | spruce json |jq '.releases | sort_by(.name) | unique_by(.name) | .[]'
+  files=( )
+  for path in spec/results manifests/releases ; do
+    [[ -d "$path" ]] && files+=( "$path"/*.yml )
+  done
+  spruce merge --go-patch "${files[@]}" | spruce json |jq '.releases | sort_by(.name) | unique_by(.name) | .[]'
 }
 
 release_paths=$(curl -s https://bosh.io/releases/ | grep '<a href="/releases/' | cut -d'"' -f2 | cut -d'?' -f1)
 get_release_url() {
-    # sort results to prefere cloudfoundry over cloudfoundry-{incubator,community}
-    local release_path=$(echo -e "${release_paths}" | grep -E "/${1}$|/${1}-release$|/${1}-boshrelease$|/${1}-bosh-release$" | sort -n | tail -n 1)
+  # sort results to prefere cloudfoundry over cloudfoundry-{incubator,community}
+  local release_path=$(echo -e "${release_paths}" | grep -E "/${1}$|/${1}-release$|/${1}-boshrelease$|/${1}-bosh-release$" | sort -n | tail -n 1)
 
-    if [ ! -z "${release_path}" ]; then
-        echo "https://bosh.io${release_path}?version=${2}"
-    fi
+  if [ ! -z "${release_path}" ]; then
+    echo "https://bosh.io${release_path}?version=${2}"
+  fi
 }
 
-pushd git-latest-tag > /dev/null
-stable_releases=$(get_releases)
-popd > /dev/null
+stable_releases=$(cd git-latest-tag; get_releases)
+new_releases=$(cd git; get_releases)
 
 echo $stable_releases | jq '.name'
-
-pushd git > /dev/null
-new_releases=$(get_releases)
-popd > /dev/null
 
 notes_releases=""
 for release in $(echo ${new_releases} | jq -c '.'); do

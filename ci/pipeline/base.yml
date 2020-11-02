@@ -67,15 +67,18 @@ meta:
       build:    (( concat meta.shout.links.pipeline "/jobs/$BUILD_JOB_NAME/builds/$BUILD_NAME" ))
 
 groups:
-  - name: (( grab meta.pipeline ))
-    jobs:
-    - spec-tests
-    - testflight
-    - pre
-    - rc
-    - shipit
-    - major
-    - minor
-  - name: upstream
-    jobs:
-    - safe-release  
+- name: (( grab meta.pipeline ))
+  jobs:
+  - spec-tests
+  - testflight
+  - pre
+  - rc
+  - shipit
+- name: upstream
+  jobs:
+  - safe-release
+- name: versioning
+  jobs:
+  - major
+  - minor
+  - patch
