@@ -3,8 +3,7 @@ platform: linux
 image_resource:
   type: registry-image
   source:
-    repository: (( grab meta.image.name ))
-    tag:        (( grab meta.image.tag ))
+    repository: starkandwayne/concourse
 
 inputs:
     - { name: git }

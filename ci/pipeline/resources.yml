@@ -1,6 +1,6 @@
 resource_types:
   - name: shout-notification
-    type: docker-image
+    type: registry-image
     source:
       repository: huntprod/shout-resource
 

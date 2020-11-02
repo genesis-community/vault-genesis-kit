@@ -14,7 +14,6 @@ else
   ci_dir=${orig_dir}
 fi
 
-
 release_files() {
   for d in $check_dirs; do
     grep -rl '^releases' "$d" 2>/dev/null || true
