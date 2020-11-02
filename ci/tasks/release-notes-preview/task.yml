@@ -3,7 +3,8 @@ platform: linux
 image_resource:
   type: registry-image
   source:
-    repository: starkandwayne/concourse
+    repository: starkandwayne/genesis
+    tag:        latest
 
 inputs:
     - { name: git }
