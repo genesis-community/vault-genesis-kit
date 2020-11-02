@@ -94,7 +94,7 @@ jobs:
   plan:
   - do:
     - in_parallel:
-      - { get: git,     trigger: true,  passed: [spec-check, spec-test, testflight] }
+      - { get: git,     trigger: true,  passed: [spec-check, spec-tests, testflight] }
       - { get: git-ci }
       - { get: version, trigger: true }
     - task: release-notes
