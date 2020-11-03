@@ -1,63 +1,202 @@
-#!/usr/bin/env bash
+#!/usr/bin/env perl
+use warnings;
+use strict;
+use YAML qw(LoadFile);
+use JSON::PP qw(decode_json);
+use File::Find;
+use File::Basename qw/basename dirname/;
 
-set -e
-set -o pipefail
-shopt -s nullglob
+# Usage: generate-release-notes
+#
+# Environment Variables:
+#   CURRENT_RELEASE_DIR - the relative path to the current release directory
+#
+#   PREVIOUS_RELEASE_DIR - the relative path to the previous release directory
+#
+#   RELEASE_GROUPS - a map for matching release name patters to groups for distict
+#                    tables, checked in order of listing.
+#
+#                    example:
+#                      '-buildpack$:buildpacks;.*:core'
+#
+#                    default:
+#                      '.*:software_components'
+#
+#   RELEASE_GROUP_LABELS - sets the table label for groups; tables will be printed
+#                          in order of occurrance.  Any groups not listed will be
+#                          converted to Title case, with underscores changed to 
+#                          spaces, and ordered alphabetically.
+#
+#                          example:
+#                           core:Core Components;buildpacks:Build Packs
+#
+#   RELEASE_PATHS - list of paths to be scanned for release definitions
+#
+#                   default:
+#                     spec/results,overlays,manifests,manifests/releases
 
-custom_notes=$(pwd)/git-ci/ci/release_notes.md
-notes=$(pwd)/release-notes/notes.md
+my $curr_dir     = $ENV{CURRENT_RELEASE_DIR} || 'git';
+my $prev_dir     = $ENV{PREVIOUS_RELEASE_DIR} || 'latest-git-tag';
+my $ci_dir       = $ENV{CI_DIR} || 'git-ci';
+my $group_map    = $ENV{RELEASE_GROUPS} || '.*:default';
+my $group_labels = $ENV{RELEASE_GROUP_LABELS} || 'default:Software Components';
+my $rel_paths    = $ENV{RELEASE_PATHS} || 'spec/results,overlays,overlays/releases,manifests,manifests/releases';
+die "Please set \$GITHUB_ACCESS_TOKEN in your environment...\n" unless (!$ENV{GITHUB_ACCESS_TOKEN});
 
-touch ${custom_notes}
-cp ${custom_notes} ${notes}
+sub run {
+	my @args = @_;
+	my $prog = shift @args;
+	$prog .= ' "$@"' if ($prog !~ /\$\{?[\@0-9]/ && scalar(@args) > 0);
+	my $shell = '/bin/bash';
+	unshift @args, basename($shell) if @args;
 
-get_releases() {
-  files=( )
-  for path in spec/results manifests/releases ; do
-    [[ -d "$path" ]] && files+=( "$path"/*.yml )
-  done
-  spruce merge --go-patch "${files[@]}" | spruce json |jq '.releases | sort_by(.name) | unique_by(.name) | .[]'
+	my @cmd = ($shell, "-c", $prog, @args);
+	my $out;
+	open my $pipe, "-|", @cmd;
+	$out = do { local $/; <$pipe> };
+	$out =~ s/\s+$//;
+	close $pipe;
+	return wantarray ? ($out, $? >>8) : $out;
 }
 
-release_paths=$(curl -s https://bosh.io/releases/ | grep '<a href="/releases/' | cut -d'"' -f2 | cut -d'?' -f1)
-get_release_url() {
-  # sort results to prefere cloudfoundry over cloudfoundry-{incubator,community}
-  local release_path=$(echo -e "${release_paths}" | grep -E "/${1}$|/${1}-release$|/${1}-boshrelease$|/${1}-bosh-release$" | sort -n | tail -n 1)
+sub check_release_notes {
+	# input <current-dir> <previous-dir>
+	# check if there are any non-automated commits between previous and current
+	# if so, fail unless there are release notes.
+	my ($curr_dir,$prev_dir) = @_;
 
-  if [ ! -z "${release_path}" ]; then
-    echo "https://bosh.io${release_path}?version=${2}"
-  fi
 }
 
-stable_releases=$(cd git-latest-tag; get_releases)
-new_releases=$(cd git; get_releases)
+sub get_releases {
+	# input release-dir
+	my ($dir,$rel_paths) = @_;
+	my @files = grep {`grep -q '^releases:' $_`; $? eq '0'} map {glob "$dir/$_/*.yml"} (split ',',$rel_paths);
+	my ($releases_json,$rc) = run(
+		q(spruce merge --skip-eval --go-patch "$@" | spruce json |jq '.releases | sort_by(.name) | unique_by(.name)'),
+		@files
+	);
+	die "Failed to determine releases under $dir\n" unless $rc eq '0';
+	my $releases;
+	eval {$releases = decode_json($releases_json)};
+	die "Could not get JSON for releases under $dir: $@" if $@;
+	$releases;
+}
 
-echo $stable_releases | jq '.name'
+my @months = qw(ignored January February March April May June July August September October November December);
+sub github {
+	my $url = shift;
+	my ($protocol,$org, $repo, $tag) = ($url =~ m{^(.*?)github.com/(.*?)/(.*?)/releases/tag/(.*?)$});
+	return ($url, '-') unless $org;
 
-notes_releases=""
-for release in $(echo ${new_releases} | jq -c '.'); do
-    name=$(echo ${release} | jq -r '.name')
-    version=$(echo ${release} | jq -r '.version')
-    stable_version=$(echo ${stable_releases} | jq -s -r --arg name "${name}" '.[] | select(.name == $name).version')
+	my $out = qx(curl -Ls -u "$ENV{GITHUB_ACCESS_TOKEN}:" https://api.github.com/repos/$org/$repo/releases/tags/$tag);
+	$url = "${protocol}github.com/$org/$repo/releases/tag/$tag";
+	my $data = decode_json($out);
+	if (defined($data->{message}) && $data->{message} eq "Not Found") {
+		$out = qx(curl -Ls -u "$ENV{GITHUB_ACCESS_TOKEN}:" https://api.github.com/repos/$org/$repo/releases/tags/v$tag);
+		$data = decode_json($out);
+		$url = "${protocol}github.com/$org/$repo/releases/tag/v$tag";
+	}
+	return ($url, "-") unless $data->{published_at};
 
-    release_url=$(get_release_url ${name} ${version})
-    if [ ! -z "${release_url}" ]; then
-        notes_releases+="| ${name} | [${version}](${release_url}) |"
-    else
-        notes_releases+="| ${name} | ${version} |"
-    fi
+	my ($year, $mon, $day) = ($data->{published_at} =~ m/^(\d{4})-(\d{2})-(\d{2})/);
+	return ($url,"$day $months[$mon] $year");
+}
 
-    if [[ "${version}" != "${stable_version}" ]]; then
-        notes_releases+=" yes |\n"
-    else
-        notes_releases+=" no |\n"
-    fi
-done
+sub build_matrix {
+	# input current-releases, previous-releases, group-map
+	my ($curr_releases, $prev_releases, $group_map) = @_;
+	my $matrix={};
+	my @group_map;
+	for (split ';', $group_map) {
+		my ($pattern,$group) = split ':', $_;
+		push @group_map, [ qr{$pattern}, $group ];
+	}
+	for my $release (sort (map {$_->{name}} (@$curr_releases), map {$_->{name}} @$prev_releases)) {
+		my $group;
+		my $i;
+		while (!$group) {
+			unless ($group_map[$i]) {
+				$group = 'default';
+				last;
+			}
+			$group = $group_map[$i][1] if $release =~ $group_map[$i][0];
+			$i++;
+		}
+		next if $matrix->{$group}{$release};
+		my ($curr) = grep {$_->{name} eq $release} @$curr_releases;
+		my ($prev) = grep {$_->{name} eq $release} @$prev_releases;
+		my $url = $curr->{url};
+		if ($url =~ qr("https?://bosh.io"/)) {
+			$url =~ s#^.*/d/#https://#;
+			$url =~ s#\\?v=.*$#/releases/tag/$curr->{version}#;
+		} elsif ($url =~ qr("https?://github.com")) {
+      $url =~ s#^.*http#http#;
+			$url =~ s#/download/.*$#/tag/$curr->{version}#;
+		}
+		($url, my $date) = github($url);
+		$matrix->{group}{$release} = {
+			url => $url,
+			curr_version => $curr->{version},
+			prev_version => $prev->{version},
+			date => $date,
+			change => (
+				$curr->{version} eq $prev->{version} ? ''        :
+				! defined($curr->{version})          ? 'removed' :
+				! defined($prev->{version})          ? 'added'   : 'updated'
+			)
+		}
+	}
+}
 
-if [ ! -z "${notes_releases}" ]; then
-    echo "## Release updates:" >> ${notes}
-    echo "| Name | Version | Changed |" >> ${notes}
-    echo "| ---- | ------- | ------- |" >> ${notes}
-    echo -e "${notes_releases}" >> ${notes}
-fi
+sub print_release_notes {
+	my ($f, $release_dir) = @_;
+	my $notes = do {
+		local $/;
+		open my $fh, "$release_dir/ci/release_notes.md" or die "Can't read ci/release_notes.md: $!";
+		<$fh>
+	};
+	$notes =~ s/[\n\r]*$//;
+	print $f $notes."\n\n";
+}
 
-cat ${notes}
+sub print_table {
+	my ($f, $title, $group, $matrix) = @_;
+	return unless my $table = $matrix->{group};
+
+	my $width = {label => 7, version => 7, dated => 12, delta => 7};
+	for my $row (@$table) {
+		$width->{$_} = (sort{$b <=> $a} (length($row->{$_}), $width->{$_}))[0] for (keys %$row);
+	}
+	print "# $title\n\n";
+	printf "| %-*s | %-*s | %-*s | %-*s |\n", $width->{label}, "Release", $width->{version}, "Version", $width->{dated}, "Release Date", $width->{delta}, "Changed";
+	printf "| %s | %s | %s | --- |\n", "-" x $width->{label}, "-" x $width->{version}, "-" x $width->{dated};
+	for my $row (@$table) {
+		printf "| %-*s | %-*s | %-*s |  %s  |\n", $width->{label}, $row->{label}, $width->{version}, $row->{version}, $width->{dated}, $row->{dated}, $row->{new} ? 'x' : ' ';
+	}
+	print "\n";
+}
+
+# Main
+my $f;
+open($f, '>', 'releases-notes/notes.md');
+print_release_notes($f, $curr_dir, $prev_dir) if check_release_notes($curr_dir, $prev_dir);
+
+my $curr_releases=get_releases($curr_dir,$rel_paths);
+my $prev_releases=get_releases($prev_dir,$rel_paths);
+
+my $matrix=build_matrix($curr_releases, $prev_releases, $group_map);
+
+my @processed_groups;
+for my $group_label (split ';', ($group_labels || 'default:Software Components')) {
+	my ($group,$label) = split(':',$group_label);
+	print_table($f, $group, $label, $matrix);
+	push @processed_groups, $group;
+}
+for my $group (sort keys %$matrix) {
+	next if grep {$_ eq $group} @processed_groups;
+	(my $label = $group) =~ s/_/ /g;
+	$label =~ s/(^| )(.)/$1\u$2/;
+	print_table($f, $group, $label, $matrix);
+}
+close $f;
+`cat release-notes/notes.md`
