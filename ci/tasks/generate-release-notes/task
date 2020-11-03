@@ -36,7 +36,7 @@ use File::Basename qw/basename dirname/;
 #                     spec/results,overlays,manifests,manifests/releases
 
 my $curr_dir     = $ENV{CURRENT_RELEASE_DIR} || 'git';
-my $prev_dir     = $ENV{PREVIOUS_RELEASE_DIR} || 'latest-git-tag';
+my $prev_dir     = $ENV{PREVIOUS_RELEASE_DIR} || 'git-latest-tag';
 my $ci_dir       = $ENV{CI_DIR} || 'git-ci';
 my $group_map    = $ENV{RELEASE_GROUPS} || '.*:default';
 my $group_labels = $ENV{RELEASE_GROUP_LABELS} || 'default:Software Components';
@@ -64,7 +64,18 @@ sub check_release_notes {
 	# check if there are any non-automated commits between previous and current
 	# if so, fail unless there are release notes.
 	my ($curr_dir,$prev_dir) = @_;
+	my $has_release_notes = (-s "$curr_dir/ci/release_notes.md");
+	my ($prev_ref, $rc) = run("git -C $prev_dir rev-parse --short HEAD");
+	chomp($prev_ref);
+	(my $out,$rc)=run(
+		"git -C $curr_dir log '$prev_ref...' --pretty=format:'%h|%cn|%ci|%s'  | grep -v '|CI Bot|[^|]*|Update to'"
+	);
+	return $has_release_notes if $rc;
 
+	bail (
+		"No release notes found, and there are non-automated commits since the last release:\n  - ".
+		join("\n  - ", split("\n", $out))
+	);
 }
 
 sub get_releases {
@@ -179,7 +190,7 @@ sub print_table {
 # Main
 my $f;
 open($f, '>', 'releases-notes/notes.md');
-print_release_notes($f, $curr_dir, $prev_dir) if check_release_notes($curr_dir, $prev_dir);
+print_release_notes($f, $curr_dir) if check_release_notes($curr_dir, $prev_dir);
 
 my $curr_releases=get_releases($curr_dir,$rel_paths);
 my $prev_releases=get_releases($prev_dir,$rel_paths);
