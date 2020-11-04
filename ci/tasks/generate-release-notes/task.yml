@@ -4,7 +4,7 @@ platform: linux
 image_resource:
   type: registry-image
   source:
-    repository: starkandwayne/genesis_ci
+    repository: starkandwayne/genesis
 
 inputs:
 - name: git

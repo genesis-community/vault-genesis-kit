@@ -180,7 +180,7 @@ sub print_table {
 
 	my $width = {label => 7, version => 7, dated => 12, updated => 7};
 	for my $row (@$table) {
-		$width->{$_} = (sort{$b <=> $a} (length($row->{$_}), $width->{$_}))[0] for (keys %$row);
+		$width->{$_} = (sort{$b <=> $a} (length($row->{$_}), $width->{$_}))[0] for (keys %$width);
 	}
 	print $f "# $title\n\n";
 	printf $f "| %-*s | %-*s | %-*s | %-*s |\n", $width->{label}, "Release", $width->{version}, "Version", $width->{dated}, "Release Date", $width->{updated}, "Updated";
