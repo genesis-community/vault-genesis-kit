@@ -151,6 +151,8 @@ jobs:
       - { get: git-latest-tag }
     - task: generate-release-notes
       file: git-ci/ci/tasks/generate-release-notes/task.yml
+      params:
+        GITHUB_ACCESS_TOKEN: (( grab meta.github.access_token ))
     - task: release
       file: git-ci/ci/tasks/shipit/task.yml
       params:

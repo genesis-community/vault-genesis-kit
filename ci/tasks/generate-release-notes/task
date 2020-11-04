@@ -41,7 +41,7 @@ my $ci_dir       = $ENV{CI_DIR} || 'git-ci';
 my $group_map    = $ENV{RELEASE_GROUPS} || '.*:default';
 my $group_labels = $ENV{RELEASE_GROUP_LABELS} || 'default:Software Components';
 my $rel_paths    = $ENV{RELEASE_PATHS} || 'spec/results,overlays,overlays/releases,manifests,manifests/releases';
-die "Please set \$GITHUB_ACCESS_TOKEN in your environment...\n" unless (!$ENV{GITHUB_ACCESS_TOKEN});
+die "Please set \$GITHUB_ACCESS_TOKEN in your environment...\n" unless ($ENV{GITHUB_ACCESS_TOKEN});
 
 sub run {
 	my @args = @_;
@@ -70,11 +70,12 @@ sub check_release_notes {
 	(my $out,$rc)=run(
 		"git -C $curr_dir log '$prev_ref...' --pretty=format:'%h|%cn|%ci|%s'  | grep -v '|CI Bot|[^|]*|Update to'"
 	);
-	return $has_release_notes if $rc;
+	return $has_release_notes if $has_release_notes || $rc;
 
-	bail (
+	die(
 		"No release notes found, and there are non-automated commits since the last release:\n  - ".
-		join("\n  - ", split("\n", $out))
+		join("\n  - ", split("\n", $out)).
+		"\n"
 	);
 }
 
@@ -122,9 +123,9 @@ sub build_matrix {
 		my ($pattern,$group) = split ':', $_;
 		push @group_map, [ qr{$pattern}, $group ];
 	}
-	for my $release (sort (map {$_->{name}} (@$curr_releases), map {$_->{name}} @$prev_releases)) {
+	for my $release (sort((map {$_->{name}} (@$curr_releases)), (map {$_->{name}} (@$prev_releases)))) {
 		my $group;
-		my $i;
+		my $i=0;
 		while (!$group) {
 			unless ($group_map[$i]) {
 				$group = 'default';
@@ -137,26 +138,27 @@ sub build_matrix {
 		my ($curr) = grep {$_->{name} eq $release} @$curr_releases;
 		my ($prev) = grep {$_->{name} eq $release} @$prev_releases;
 		my $url = $curr->{url};
-		if ($url =~ qr("https?://bosh.io"/)) {
+		if ($url =~ qr(https?://bosh.io/)) {
 			$url =~ s#^.*/d/#https://#;
 			$url =~ s#\\?v=.*$#/releases/tag/$curr->{version}#;
-		} elsif ($url =~ qr("https?://github.com")) {
-      $url =~ s#^.*http#http#;
+		} elsif ($url =~ qr(https?://github.com)) {
+			$url =~ s#^.*http#http#;
 			$url =~ s#/download/.*$#/tag/$curr->{version}#;
 		}
 		($url, my $date) = github($url);
-		$matrix->{group}{$release} = {
-			url => $url,
-			curr_version => $curr->{version},
+		$matrix->{$group}{$release} = {
+			label => $release,
+			version => $curr->{version} ? "[$curr->{version}]($url)" : '-',
 			prev_version => $prev->{version},
-			date => $date,
-			change => (
-				$curr->{version} eq $prev->{version} ? ''        :
+			dated => $date,
+			updated => (
+				$curr->{version} eq $prev->{version} ? 'no'      :
 				! defined($curr->{version})          ? 'removed' :
-				! defined($prev->{version})          ? 'added'   : 'updated'
+				! defined($prev->{version})          ? 'added'   : 'yes'
 			)
 		}
 	}
+	return $matrix;
 }
 
 sub print_release_notes {
@@ -171,25 +173,27 @@ sub print_release_notes {
 }
 
 sub print_table {
-	my ($f, $title, $group, $matrix) = @_;
-	return unless my $table = $matrix->{group};
+	my ($f, $group, $title, $matrix) = @_;
+	return unless $matrix->{$group};
 
-	my $width = {label => 7, version => 7, dated => 12, delta => 7};
+	my $table;
+	push(@$table, $matrix->{$group}{$_}) for (sort keys %{$matrix->{$group}});
+
+	my $width = {label => 7, version => 7, dated => 12, updated => 7};
 	for my $row (@$table) {
 		$width->{$_} = (sort{$b <=> $a} (length($row->{$_}), $width->{$_}))[0] for (keys %$row);
 	}
-	print "# $title\n\n";
-	printf "| %-*s | %-*s | %-*s | %-*s |\n", $width->{label}, "Release", $width->{version}, "Version", $width->{dated}, "Release Date", $width->{delta}, "Changed";
-	printf "| %s | %s | %s | --- |\n", "-" x $width->{label}, "-" x $width->{version}, "-" x $width->{dated};
+	print $f "# $title\n\n";
+	printf $f "| %-*s | %-*s | %-*s | %-*s |\n", $width->{label}, "Release", $width->{version}, "Version", $width->{dated}, "Release Date", $width->{updated}, "Updated";
+	printf $f "| %s | %s | %s | %s |\n", "-" x $width->{label}, "-" x $width->{version}, "-" x $width->{dated}, "-" x $width->{updated};
 	for my $row (@$table) {
-		printf "| %-*s | %-*s | %-*s |  %s  |\n", $width->{label}, $row->{label}, $width->{version}, $row->{version}, $width->{dated}, $row->{dated}, $row->{new} ? 'x' : ' ';
+		printf $f "| %-*s | %-*s | %-*s | %-*s |\n", $width->{label}, $row->{label}, $width->{version}, $row->{version}, $width->{dated}, $row->{dated}, $width->{updated}, $row->{updated};
 	}
-	print "\n";
+	print $f "\n";
 }
 
 # Main
-my $f;
-open($f, '>', 'releases-notes/notes.md');
+open(my $f, '>', 'release-notes/notes.md') or die("Could not open release-notes/notes.md for writing\n");
 print_release_notes($f, $curr_dir) if check_release_notes($curr_dir, $prev_dir);
 
 my $curr_releases=get_releases($curr_dir,$rel_paths);
@@ -210,4 +214,4 @@ for my $group (sort keys %$matrix) {
 	print_table($f, $group, $label, $matrix);
 }
 close $f;
-`cat release-notes/notes.md`
+print `cat release-notes/notes.md`."\n";
