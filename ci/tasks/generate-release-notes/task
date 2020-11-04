@@ -1,7 +1,6 @@
 #!/usr/bin/env perl
 use warnings;
 use strict;
-use YAML qw(LoadFile);
 use JSON::PP qw(decode_json);
 use File::Find;
 use File::Basename qw/basename dirname/;
