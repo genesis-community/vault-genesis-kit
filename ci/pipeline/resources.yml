@@ -12,7 +12,7 @@ resources:
       uri:         (( grab meta.github.uri ))
       branch:      (( grab meta.github.branch ))
       private_key: (( grab meta.github.private_key ))
-      ignore_paths: [ci/*]
+      ignore_paths: [ci/tasks/*, ci/pipeline/*, ci/scripts/*]
 
   - name: git-ci
     type: git
@@ -21,7 +21,7 @@ resources:
       uri:         (( grab meta.github.uri ))
       branch:      (( grab meta.github.branch ))
       private_key: (( grab meta.github.private_key ))
-      paths: [ci/*]
+      paths:       [ci/tasks/*, ci/pipeline/*, ci/scripts/*]
       disable_ci_skip: true
 
   - name: git-latest-tag
