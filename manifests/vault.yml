@@ -33,7 +33,7 @@ instance_groups:
   stemcell: default
   networks:
   - name:       (( grab params.vault_network || "vault" ))
-    static_ips: (( static_ips(0, 1, 2) ))
+    static_ips: (( static_ips 0 1 2 ))
 
 update:
   serial: true
