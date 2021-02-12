@@ -12,7 +12,7 @@ resources:
       uri:         (( grab meta.github.uri ))
       branch:      (( grab meta.github.branch ))
       private_key: (( grab meta.github.private_key ))
-      ignore_paths: [ci/tasks/*, ci/pipeline/*, ci/scripts/*]
+      ignore_paths: ["ci/*[^md]"]
 
   - name: git-ci
     type: git
