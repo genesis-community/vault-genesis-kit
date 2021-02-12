@@ -1,6 +1,5 @@
 #!/bin/bash
 set -eu
-KIT=vault
 
 header() {
 	echo
@@ -16,8 +15,8 @@ cleanup() {
 		$BOSH -n -d "${deployment}" delete-deployment
 
 		for disk in $($BOSH disks --orphaned | grep "${deployment}" | awk '{print $1}'); do
-			echo "  - removing disk $disk"
-			$BOSH -n delete-disk "$disk"
+			echo "  - removing disk ${disk}"
+			$BOSH -n delete-disk "${disk}"
 		done
 	done
 }
@@ -26,17 +25,15 @@ header "Checking previous deployments on ${BOSH_ENVIRONMENT}..."
 $BOSH deployments
 
 header "Cleaning up from any previous deployments (if necessary)..."
-cleanup ci-baseline-${KIT}
-safe rm -rf secret/ci/baseline/${KIT}
+cleanup ci-baseline-${KIT_SHORTNAME}
+safe rm -rf secret/ci/baseline/${KIT_SHORTNAME}
 
 header "Deploying BASELINE environment to verify functionality..."
 cd dev
 # make sure hooks are executable before screaming at shipit for failing.
-genesis compile-kit --name $KIT -v 9.9.9 --force
+genesis compile-kit --name ${KIT_SHORTNAME} -v 9.9.9 --force
 cd ..
 genesis add-secrets ci-baseline
 genesis deploy -y ci-baseline
-$BOSH -d ci-baseline-${KIT} instances --ps
-genesis do ci-baseline init
-safe get secret/vault/seal/keys
-cleanup ci-baseline-${KIT}
+$BOSH -d ci-baseline-${KIT_SHORTNAME} instances --ps
+cleanup ci-baseline-${KIT_SHORTNAME}

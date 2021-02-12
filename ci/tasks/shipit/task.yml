@@ -2,7 +2,7 @@
 platform: linux
 
 image_resource:
-  type: registry-image
+  type: docker-image
   source:
     repository: starkandwayne/concourse
 
@@ -25,7 +25,7 @@ params:
   GITHUB_OWNER:     genesis-community
   GIT_EMAIL:        ci@starkandwayne.com
   GIT_NAME:         Stark & Wayne CI Bot
-  KIT_SHORTNAME:    vault
+  KIT_SHORTNAME:    UPDATEME
 
 run:
   path: git-ci/ci/tasks/shipit/task

@@ -1,7 +1,35 @@
 jobs:
+- name: spec-tests
+  public: true
+  serial: true
+  serial_groups: [genesis-ci]
+  plan:
+  - do:
+    - in_parallel:
+      - { get: git, trigger: true }
+      - { get: git-ci }
+    - task: spec-testing
+      file: git-ci/ci/tasks/spec-tests/task.yml
+      attempts: 2
+    on_success:
+      put: notify
+      params:
+        topic:   (( concat meta.shout.topic "-$BUILD_JOB_NAME" ))
+        message: tests job '$BUILD_JOB_NAME' succeeded.
+        ok:      yes
+        link:    (( grab meta.shout.links.build ))
+    on_failure:
+      put: notify
+      params:
+        topic:   (( concat meta.shout.topic "-$BUILD_JOB_NAME" ))
+        message: tests job '$BUILD_JOB_NAME' failed.
+        ok:      no
+        link:    (( grab meta.shout.links.build ))
+
 - name: spec-check
   public: true
   serial: true
+  serial_groups: [genesis-ci]
   plan:
   - do:
     - in_parallel:
@@ -25,32 +53,6 @@ jobs:
         ok:      no
         link:    (( grab meta.shout.links.build ))
 
-- name: spec-tests
-  public: true
-  serial: true
-  plan:
-  - do:
-    - in_parallel:
-      - { get: git, trigger: true }
-      - { get: git-ci }
-    - task: spec-testing
-      file: git-ci/ci/tasks/spec-tests/task.yml
-      attempts: 2
-    on_success:
-      put: notify
-      params:
-        topic:   (( concat meta.shout.topic "-$BUILD_JOB_NAME" ))
-        message: tests job '$BUILD_JOB_NAME' succeeded.
-        ok:      yes
-        link:    (( grab meta.shout.links.build ))             
-    on_failure:
-      put: notify
-      params:
-        topic:   (( concat meta.shout.topic "-$BUILD_JOB_NAME" ))
-        message: tests job '$BUILD_JOB_NAME' failed.
-        ok:      no
-        link:    (( grab meta.shout.links.build ))
-        
 - name: testflight
   public: true
   serial: true
@@ -58,7 +60,7 @@ jobs:
   plan:
   - do:
     - in_parallel:
-      - { get: git, trigger: true}
+      - { get: git, trigger: true,  passed: [spec-tests] }
       - { get: git-ci }
     - task: testflights
       file: git-ci/ci/tasks/test-flight/task.yml
@@ -94,11 +96,12 @@ jobs:
   plan:
   - do:
     - in_parallel:
-      - { get: git,     trigger: true,  passed: [spec-check, spec-tests, testflight] }
-      - { get: git-ci }
+      - { get: git,     trigger: true,  passed: [testflight] }
       - { get: version, trigger: true }
-    - task: release-notes
-      file: git-ci/ci/tasks/release-notes-preview/task.yml
+      - { get: git-ci }
+      - { get: git-latest-tag }
+    - task: generate-release-notes
+      file: git-ci/ci/tasks/generate-release-notes/task.yml
     on_success:
       put: notify
       params:
@@ -139,6 +142,69 @@ jobs:
         ok:      no
         link:    (( grab meta.shout.links.build ))
 
+- name: patch
+  public: true
+  plan:
+  - do:
+    - { get: version, trigger: false, params: {bump: patch} }
+    - { put: version,                 params: {file: version/number} }
+    on_success:
+      put: notify
+      params:
+        topic:   (( concat meta.shout.topic "-$BUILD_JOB_NAME" ))
+        message: minor version bump job 'minor' succeeded.
+        ok:      yes
+        link:    (( grab meta.shout.links.build ))
+    on_failure:
+      put: notify
+      params:
+        topic:   (( concat meta.shout.topic "-$BUILD_JOB_NAME" ))
+        message: minor version bump job 'minor' failed (which is unusual).
+        ok:      no
+        link:    (( grab meta.shout.links.build ))
+
+- name: minor
+  public: true
+  plan:
+  - do:
+    - { get: version, trigger: false, params: {bump: minor} }
+    - { put: version,                 params: {file: version/number} }
+    on_success:
+      put: notify
+      params:
+        topic:   (( concat meta.shout.topic "-$BUILD_JOB_NAME" ))
+        message: minor version bump job 'minor' succeeded.
+        ok:      yes
+        link:    (( grab meta.shout.links.build ))
+    on_failure:
+      put: notify
+      params:
+        topic:   (( concat meta.shout.topic "-$BUILD_JOB_NAME" ))
+        message: minor version bump job 'minor' failed (which is unusual).
+        ok:      no
+        link:    (( grab meta.shout.links.build ))
+
+- name: major
+  public: true
+  plan:
+  - do:
+    - { get: version, trigger: false, params: {bump: major} }
+    - { put: version,                 params: {file: version/number} }
+    on_success:
+      put: notify
+      params:
+        topic:   (( concat meta.shout.topic "-$BUILD_JOB_NAME" ))
+        message: major version bump job '$BUILD_JOB_NAME' succeeded.
+        ok:      no
+        link:    (( grab meta.shout.links.build ))
+    on_failure:
+      put: notify
+      params:
+        topic:   (( concat meta.shout.topic "-$BUILD_JOB_NAME" ))
+        message: major version bump job '$BUILD_JOB_NAME' failed (which is unusual).
+        ok:      no
+        link:    (( grab meta.shout.links.build ))
+
 - name: shipit
   public: true
   serial: true
@@ -151,8 +217,6 @@ jobs:
       - { get: git-latest-tag }
     - task: generate-release-notes
       file: git-ci/ci/tasks/generate-release-notes/task.yml
-      params:
-        GITHUB_ACCESS_TOKEN: (( grab meta.github.access_token ))
     - task: release
       file: git-ci/ci/tasks/shipit/task.yml
       params:
