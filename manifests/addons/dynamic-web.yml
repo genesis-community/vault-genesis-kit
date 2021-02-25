@@ -1,4 +1,4 @@
-- type: replace
+- type: append
   path: /instance_groups/name=vault/vm_extensions?
   value:
   - (( grab params.vault_vm_extension || "vault-loadbalancer" ))
