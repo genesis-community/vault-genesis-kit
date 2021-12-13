@@ -37,8 +37,8 @@ credentials used elsewhere in deployments and applications.
   and `z3`.
 
 - `stemcell_os` - The operating system stemcell you want to deploy
-  on. (default: `ubuntu-xenial`)
-  
+  on. (default: `ubuntu-bionic`)
+
 - `stemcell_version` - The specific version of the stemcell you want
   to deploy on. (default: `latest`)
 
@@ -46,10 +46,10 @@ credentials used elsewhere in deployments and applications.
   names the availability set to deploy the Vault nodes across.
   This parameter does not have any effect on other platforms.
 
-- `auxiliary_vault` - If deploying a second Vault after the 
+- `auxiliary_vault` - If deploying a second Vault after the
   primary Genesis Vault was deployed. This prevents automatic
-  unsealing of the Vault after a deploy, as Genesis will attempt 
-  to unseal the new Vault with the seal keys of the primary 
+  unsealing of the Vault after a deploy, as Genesis will attempt
+  to unseal the new Vault with the seal keys of the primary
   Genesis Vault. Defaults to `false`.
 
 - `ui` - If true, the Vault Web UI will be turned on. Defaults to true.
