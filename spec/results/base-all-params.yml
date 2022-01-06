@@ -1,4 +1,5 @@
 exodus:
+  bosh: base-all-params
   domain: test.domain.com
   ips:
   - 10.1.1.0
@@ -6,6 +7,8 @@ exodus:
   - 10.1.1.2
   - 10.1.1.3
   - 10.1.1.4
+  is_director: false
+  use_create_env: false
 instance_groups:
 - azs:
   - z1
