@@ -43,8 +43,8 @@ name: base-all-params-vault
 releases:
 - name: safe
   sha1: ee009da0398ec1688ccfe830d68957be49571b0a
-  url: https://github.com/cloudfoundry-community/safe-boshrelease/releases/download/v0.3.0/safe-0.3.0.tgz
-  version: 0.3.0
+  url: https://github.com/cloudfoundry-community/safe-boshrelease/releases/download/v0.3.0/safe-0.3.1.tgz
+  version: 0.3.1
 stemcells:
 - alias: default
   os: test-stemcell
