@@ -4,7 +4,7 @@ kit:
 
 genesis:
   env:   ci-baseline
-  bosh:  snw-genesis-ci
+  bosh_env:  snw-genesis-ci
 
 params:
   auxiliary_vault: true
