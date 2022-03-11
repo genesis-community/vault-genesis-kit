@@ -67,6 +67,14 @@ params:
   vault_vm_type:   default # VMs should have at least 1 CPU, and 1GB of memory
 ```
 
+# Features
+
+## Dynamic Web
+
+For those that wish to put their Vault instances behind a load balancer, simply
+enable the `dynamic-web` feature and adjust your cloud config to have the IAAS
+specific information for the `vm_extension` of `vault-loadbalancer`. If you
+wish to specify a `vm_extension`, simply override via `params.vault_vm_extension`.
 
 # Available Addons
 
