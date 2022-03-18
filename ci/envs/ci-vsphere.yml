@@ -1,3 +1,6 @@
 ---
 genesis:
   bosh_env:  snw-genesis-ci
+
+params:
+  availability_zones: [z1]

@@ -1,9 +1,12 @@
 exodus:
+  bosh: base
   domain: vault.bosh
   ips:
   - 10.99.0.16
   - 10.99.0.17
   - 10.99.0.18
+  is_director: false
+  use_create_env: false
 instance_groups:
 - azs:
   - z1

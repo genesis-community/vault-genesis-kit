@@ -3,7 +3,8 @@ kit:
   features: []
 
 genesis:
-  env:   base-all-params
+  env:      base-all-params
+  bosh_env: some-other-env
 
 params:
   auxiliary_vault: true
