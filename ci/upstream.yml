@@ -1,7 +1,0 @@
----
-# This file contains patterns for generating links to upstream release notes,
-# for constituent releases.
-
-core:
-  - name:  vault
-    notes: https://github.com/cloudfoundry-community/safe-boshrelease/releases/tag/v${version}

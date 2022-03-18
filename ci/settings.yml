@@ -1,16 +1,23 @@
 ---
 meta:
-  kit:     vault
-  release: Vault Genesis Kit
-  target:  pipes@genesis
-  url:     https://pipes.starkandwayne.com
-  exposed: yes
+  kit:             vault
+  target:          cloudpipes/genesis
+  url:             https://cloudpipes.starkandwayne.com
+  iaas:            gcp
+  exposed:         false
+  version_file:    version
+  initial_version: 2.1.0
 
   bosh:
     uri:      ((bosh.uri))
     username: ((bosh.username))
     password: ((bosh.password))
     cacert:   ((bosh.ca))
+
+  credhub:
+    url:      ((bosh.credhub_url))
+    username: ((bosh.credhub_username))
+    password: ((bosh.credhub_password))
 
   vault:
     url:       ((vault.url))
@@ -23,7 +30,8 @@ meta:
   github:
     owner:        genesis-community
     repo:         vault-genesis-kit
-    branch:       master
+    branch:       develop
+    main-branch:  main
     private_key:  ((github.private_key))
     access_token: ((github.access_token))
 
