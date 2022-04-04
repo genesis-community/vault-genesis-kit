@@ -39,3 +39,10 @@ meta:
     url:      ((shout.url)
     username: ((shout.username))
     password: ((shout.password))
+
+  upstream:
+    bosh_releases:
+    - name:       safe
+      type:       bosh-io-release
+      repository: cloudfoundry-community/safe-boshrelease
+      path:       manifests/releases/safe.yml
