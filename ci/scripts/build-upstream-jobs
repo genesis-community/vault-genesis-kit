@@ -34,13 +34,13 @@ jobs:
     - in_parallel:
       - { get: git,    trigger: false, passed: [spec-tests] }
       - { get: git-ci, trigger: false  }
-      - get: $name-release
+      - get: $release
         trigger: true
         params:
           tarball: false
     - task: $job
       file: git-ci/ci/tasks/update-release.yml
-      input_mapping: {release: $release}
+      input_mapping: {bosh-release: $release}
       params:
         RELEASE_NAME:  $name
         RELEASE_PATH:  $path
