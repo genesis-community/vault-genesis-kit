@@ -42,6 +42,9 @@ releases:
   sha1: ${sha1}
 YML
 
+  header "Release file changes:"
+  git -C git diff --color=always "${RELEASE_PATH}" | cat
+
   header "Recreate spec-test results to validate upstream"
   pushd git/spec &> /dev/null
   # TODO: remove spec/{credhub,vault} if needed? because this will regenerate vault.
@@ -52,7 +55,7 @@ YML
   header "Spec file changes:"
   git -C git diff --color=always spec/results/ | cat
 
-  if [[ -n $(git status -s) ]]; then
+  if [[ -n $(git -C git status -s) ]]; then
 
     header "Commiting updates to git"
     git config --global user.name  "${GIT_NAME}"
@@ -69,6 +72,7 @@ YML
     git remote add live "$https_url"
     git pull --rebase=merges live "$BRANCH" -X theirs --no-edit
     git remote remove live
+    popd &> /dev/null
   else
     echo "No changes detected."
   fi
