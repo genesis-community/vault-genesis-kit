@@ -40,9 +40,9 @@ instance_groups:
 name: base-vault
 releases:
 - name: safe
-  sha1: ee009da0398ec1688ccfe830d68957be49571b0a
-  url: https://github.com/cloudfoundry-community/safe-boshrelease/releases/download/v0.3.0/safe-0.3.0.tgz
-  version: 0.3.0
+  sha1: 681d650061e759ae2d7f14efcef853bee051ca5c
+  url: https://bosh.io/d/github.com/cloudfoundry-community/safe-boshrelease?v=0.3.2
+  version: 0.3.2
 stemcells:
 - alias: default
   os: ubuntu-xenial

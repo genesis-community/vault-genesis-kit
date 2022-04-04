@@ -1,8 +1,5 @@
-- type: replace
-  path: /releases?/name=safe?
-  value:
-    name:    safe
-    version: 0.3.0
-    url:     https://github.com/cloudfoundry-community/safe-boshrelease/releases/download/v0.3.0/safe-0.3.0.tgz
-    sha1:    ee009da0398ec1688ccfe830d68957be49571b0a
-
+releases:
+- name: safe
+  version: 0.3.2
+  url: https://bosh.io/d/github.com/cloudfoundry-community/safe-boshrelease?v=0.3.2
+  sha1: 681d650061e759ae2d7f14efcef853bee051ca5c
