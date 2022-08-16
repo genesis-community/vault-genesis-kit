@@ -2,7 +2,6 @@
 set -eu
 
 declare -a merge
-validate_features # none
 
 merge=( manifests/vault.yml
         manifests/releases/safe.yml )
@@ -25,10 +24,25 @@ EOF
   ) > manifests/static_ips.yml
   merge+=( manifests/static_ips.yml )
 fi
+
 case "$(bosh_cpi)" in
 (azure*)
 	merge+=( manifests/azure.yml )
 	;;
 esac
+
+for want in ${GENESIS_REQUESTED_FEATURES}; do
+  case "${want}" in 
+    (*)
+      if [[ -f "${GENESIS_ROOT}/ops/${want}.yml" ]] ; then
+        merge+=( "${GENESIS_ROOT}/ops/${want}.yml" )
+      else
+        abort=1
+        describe >&2 \
+          "#R{[ERROR]} The #c{$want} feature is invalid. See the manual and ops/ directory for a list of valid features."
+      fi
+      ;;
+  esac
+done
 
 echo "${merge[@]}"
