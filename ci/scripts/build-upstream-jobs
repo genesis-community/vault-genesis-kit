@@ -17,6 +17,20 @@ for release in $upstream_details ; do
   type="$(_lookup "$release" '.type//"bosh-io-release"')"
   path="$(_lookup "$release" '.path//"manifests/releases/'"$name"'.yml"')"
   repo="$(_lookup "$release" '.repository')"
+  source=$'\n'"      repository: $repo";
+  if [[ $type == 'github-release' ]] ; then
+    owner="$(_lookup "$release" '.owner')"
+    source="$source"$'\n'"      owner: $owner";
+    token="$(_lookup "$release" '.access_token//""')"
+    if [[ -n "$token" ]] ; then
+      source="$source"$'\n      access_token: "'"$token"'"'
+    fi
+  elif [[ $type != 'bosh-io-release' ]] ; then
+    echo >&2 "Unknown resource type for $name upstream release: $type"
+    echo >&2 "Expecting one of: bosh-io-release, github-release"
+    echo >&2 "Update upstream.bosh-releases configuration in ci/settings.yml"
+    exit 1
+  fi
   job="update-${name}-release"
   release="${name}-release"
 
@@ -57,8 +71,7 @@ resources:
   - name: $release
     type: $type
     check_every: 24h
-    source:
-      repository: $repo
+    source: $source
 EOF
 
 done

@@ -217,7 +217,6 @@ if (( DRYRUN > 0 )) ; then
   if [ ! -t 1 ] ; then
     pid="$$"
     persistent_file="$(/usr/sbin/lsof -p "$pid" -a -d 1 | tail -n 1 | awk '{print $NF}')"
-    echo "$persistent_file" > pf.out
     if [[ -n "${persistent_file}" ]] ; then 
       if [[ "${persistent_file}" =~ '->0x' ]] ; then 
         persistent_file=''
