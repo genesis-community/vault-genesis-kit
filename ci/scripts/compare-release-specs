@@ -3,7 +3,7 @@ set -ue
 
 # What branch is the comparison of the current working branch being compared against
 compare_branch="${1:-origin/}"
-check_dirs="spec manifests manifests/releases"
+check_dirs="spec/results manifests"
 
 orig_dir="$(pwd)"
 # needed because of when running locally or in ci
@@ -23,7 +23,7 @@ release_files() {
 releases() {
   eval "spruce merge --skip-eval $( \
   release_files \
-  | sed -e "s/\\(.*\\)/\<(spruce json \\1 | jq -r '{releases: .releases}')/" |tr "\n" " " \
+  | sed -e "s/\\(.*\\)/\<(spruce json \\1 | jq -r '{releases: [ \"(( merge on sha1 ))\", .releases[] ]}')/" |tr "\n" " " \
   ) | spruce merge | spruce json | jq -r ."
 }
 
@@ -31,6 +31,11 @@ workdir="$(mktemp -d)"
 mkdir "$workdir/compare"
 cp -R "$(pwd)/.git" "$workdir/compare/"
 pushd "$workdir/compare" > /dev/null
+if ! git show -q "$compare_branch" &>/dev/null ; then
+  echo "The latest release ($compare_branch) is NOT an ancestor to this commit."
+  echo "This should never happen -- Cannot continue!"
+ exit 1
+fi
 git checkout -qf --detach "$compare_branch"
 prev_releases="$(releases)"
 popd > /dev/null
