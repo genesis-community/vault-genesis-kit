@@ -1,6 +1,9 @@
 ---
 genesis:
-  bosh_env:  snw-genesis-ci
+  bosh_env:  rsat-bc-genesis-ci
 
 params:
   availability_zones: [z1]
+
+meta:
+  _ip_prefix: "172.20."

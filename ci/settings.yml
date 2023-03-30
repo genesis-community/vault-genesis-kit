@@ -1,9 +1,10 @@
 ---
 meta:
   kit:             vault
-  target:          cloudpipes/genesis
-  url:             https://cloudpipes.starkandwayne.com
-  iaas:            gcp
+  release:         Vault Genesis Kit
+  target:          pipes/genesis
+  url:             https://pipes.scalecf.net
+  iaas:            vsphere
   exposed:         false
   version_file:    version
   initial_version: 2.1.0
@@ -24,8 +25,11 @@ meta:
     token:     ((vault.token))
 
   aws:
-    access_key: ((aws.access_key_id))
-    secret_key: ((aws.secret_access_key))
+    endpoint:    ((aws.endpoint))
+    access_key:  ((aws.access_key_id))
+    secret_key:  ((aws.secret_access_key))
+    insecure:    true
+    region_name: ~
 
   github:
     owner:        genesis-community
