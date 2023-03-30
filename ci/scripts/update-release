@@ -26,13 +26,24 @@ test -n "${BRANCH:-}"         || bail "BRANCH must be set to the branch to updat
 # Get release details
 pushd bosh-release &> /dev/null
 release_name=$RELEASE_NAME
-release_version=$( cat version )
-url=$( cat url )
-sha1=$( cat sha1 )
+release_version="$( cat version )"
+url="$( cat url )"
+if [[ -f sha1 ]] ; then # bosh-io-release
+  sha1=$( cat sha1 )
+else # github-release (maybe others?)
+  filename="$( compgen -G "$release_name"*"$release_version.tar.gz" \
+            || compgen -G "$release_name"*"$release_version.tar" \
+            || compgen -G "$release_name"*"$release_version.tgz" \
+            || compgen -G "$release_name"*"$release_version.zip" )"
+  if [[ "$url" =~ https://github.com.*releases/tag/v?$release_version ]] ; then
+    url="${url/\/tag\//\/download\/}/$filename"
+  fi
+  sha1="$( sha1sum "$filename" | cut -d' ' -f1)"
+fi
 popd &> /dev/null
 
 # Create ops-file
-if ! grep -q "version: ${release_version}\$" "${RELEASE_PATH}"; then
+if ! grep -q "version: \\+${release_version}\$" "git/${RELEASE_PATH}"; then
 
   cat > "git/${RELEASE_PATH}" <<YML
 releases:
@@ -43,7 +54,13 @@ releases:
 YML
 
   header "Release file changes:"
-  git -C git diff --color=always "${RELEASE_PATH}" | cat
+  results="$(git -C git diff -b --color=always "${RELEASE_PATH}" | cat)"
+  if echo "$results" | grep -q '.' ; then
+    echo "$results"
+  else
+    echo "No differences found"
+    exit 0
+  fi
 
   header "Recreate spec-test results to validate upstream"
   pushd git/spec &> /dev/null
@@ -64,7 +81,7 @@ YML
     pushd git &>/dev/null
     git add "${RELEASE_PATH}"
     git add spec/
-    git commit -m "Release ${release_name}/${release_version} updated to version ${release_version}"
+    git commit -m "Release updated: ${release_name}/${release_version}"
 
     # The following is done to ensure a clean push to the develop branch, while
     # basing the input on a version that last passed the spec-tests.
@@ -77,5 +94,5 @@ YML
     echo "No changes detected."
   fi
 else
-  echo "Nothing todo as versions are the same"
+  echo "Nothing to do as versions are the same"
 fi
