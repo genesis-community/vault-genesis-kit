@@ -75,13 +75,18 @@ resources:
 EOF
 
 done
-(
-echo "groups:"
-echo "- (( append ))"
-echo "- name: upstream"
-echo "  jobs:"
-for job in "${update_group[@]}" ; do 
+group_file="$base_dir/pipeline/upstream/update_group.yml"
+if [[ "${#update_group[@]}" -gt 0 ]] ; then
+  (
+  echo "groups:"
+  echo "- (( merge on name ))"
+  echo "- name: upstream"
+  echo "  jobs:"
+  echo "  - (( append ))"
+  for job in ${update_group[@]+"${update_group[@]}"} ; do
   echo "  - $job"
-done
-) >> "$base_dir/pipeline/upstream/update_group.yml"
-
+  done
+  ) >> "$group_file"
+elif [[ -f "$group_file" ]] ; then
+  rm -f "$group_file"
+fi
