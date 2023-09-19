@@ -41,10 +41,9 @@ if [[ ${#check_dirs[@]} -gt 0 ]] ; then
   out="$(eval "spruce merge --skip-eval $( \
     grep -rl '^releases:' "${check_dirs[@]}" \
     | sed -e "s/\\(.*\\)/<(spruce json \\1 | jq -r '{releases: [ \"(( merge on sha1 ))\", .releases[] ]}')/" |tr "\n" " " \
-    ) | spruce json | jq -r ." )"
+  ) | spruce json | jq -r ." )"
   echo "$out" | spruce merge | spruce json | "${CI_ROOT}/ci/scripts/check-sha1s"
 fi
-
 
 header "Building $KIT_SHORTNAME kit v$VERSION"
 genesis -C "$REPO_ROOT" compile-kit -v "$VERSION" -n "$KIT_SHORTNAME"
