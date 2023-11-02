@@ -1,4 +1,4 @@
-#!/bin/bash - 
+#!/bin/bash -
 set -ue
 base_dir="$(cd "$(dirname "$0")/.." && pwd)"
 mkdir -p "${base_dir}/pipeline/upstream/"
@@ -17,15 +17,21 @@ for release in $upstream_details ; do
   type="$(_lookup "$release" '.type//"bosh-io-release"')"
   path="$(_lookup "$release" '.path//"manifests/releases/'"$name"'.yml"')"
   repo="$(_lookup "$release" '.repository')"
-  source=$'\n'"      repository: $repo";
-  if [[ $type == 'github-release' ]] ; then
-    owner="$(_lookup "$release" '.owner')"
-    source="$source"$'\n'"      owner: $owner";
+  if [[ $type == 'bosh-io-release' ]] ; then
+    source=$'\n'"      repository: $repo";
+  elif [[ $type == 'github-release' ]] ; then
+    owner="$(_lookup "$release" '.owner//""')"
+    if [[ -z "$owner" && "$repo" =~ / ]] ; then
+      owner="${repo%%/*}"
+      repo="${repo#*/}"
+    fi
+    source=$'\n'"      repository: $repo"$'\n'"      owner: $owner";
+
     token="$(_lookup "$release" '.access_token//""')"
     if [[ -n "$token" ]] ; then
       source="$source"$'\n      access_token: "'"$token"'"'
     fi
-  elif [[ $type != 'bosh-io-release' ]] ; then
+  else
     echo >&2 "Unknown resource type for $name upstream release: $type"
     echo >&2 "Expecting one of: bosh-io-release, github-release"
     echo >&2 "Update upstream.bosh-releases configuration in ci/settings.yml"
@@ -84,7 +90,7 @@ if [[ "${#update_group[@]}" -gt 0 ]] ; then
   echo "  jobs:"
   echo "  - (( append ))"
   for job in ${update_group[@]+"${update_group[@]}"} ; do
-  echo "  - $job"
+    echo "  - $job"
   done
   ) >> "$group_file"
 elif [[ -f "$group_file" ]] ; then
