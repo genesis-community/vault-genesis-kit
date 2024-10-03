@@ -1,6 +1,13 @@
 ---
+kit:
+  ci:
+    job: deploy
+    serial_groups:
+    - deployment
+
 genesis:
-  env:   ci-vsphere-baseline
+  env: ci-vsphere-baseline
+  min_version: 3.0.9
 
 params:
   auxiliary_vault: true
