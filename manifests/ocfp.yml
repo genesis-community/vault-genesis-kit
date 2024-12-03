@@ -1,0 +1,11 @@
+---
+
+params:
+  vault_network:       (( concat meta.ocfp.env.cloud "net-bosh" ))
+  vault_vm_type:       (( concat meta.ocfp.env.cloud "vm-bosh" ))
+  vault_disk_type:     (( concat meta.ocfp.env.cloud "disk-bosh" ))
+
+meta:
+  ocfp:
+    env:
+      cloud: (( concat genesis.env "." genesis.type "." ))
