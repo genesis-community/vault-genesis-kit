@@ -8,6 +8,8 @@ BEGIN {push @INC, $ENV{GENESIS_LIB} ? $ENV{GENESIS_LIB} : $ENV{HOME}.'/.genesis/
 
 use parent qw(Genesis::Hook::Blueprint);
 
+use Genesis qw/bail info warning error mkfile_or_fail/;
+
 sub init {
 	my $class = shift;
 	my $obj = $class->SUPER::init(@_);
@@ -28,33 +30,36 @@ sub perform {
   my $ips = $self->env->lookup('params.ips', []);
 
   my $dynamic_static_fragment = '';
-  if ($want_feature 'ocfp') {
+  if ($self->want_feature('ocfp')) {
     # Determine instance count and IPs from ocfp config
     my $subnets = $self->env->ocfp_config_lookup('vpc.subnets');
     my $prefix = $self->env->ocfp_subnet_prefix;
-    my $az_map = $self->director_exodus_lookup('/network')->{azs};
+    my $az_map = $self->env->director_exodus_lookup('/network')->{azs};
+
     my (@ips, @azs) = ();
-    for my $subnet (sort grep {/^$prefix/} keys %$sn) {
-      my $ip = $sn->{$_}{'reserved-ips'}{'vault_ip'};
+    for my $subnet (sort grep {/^$prefix/} keys %$subnets) {
+      my $ip = $subnets->{$subnet}{'reserved-ips'}{'vault_ip'};
       next unless $ip;
       push @ips, $ip;
-      push @azs, $az_map->{$sn->{$_}{az}}->{name};
+      push @azs, $az_map->{$subnets->{$subnet}{az}}{name};
     }
+
+    # FIXME: Should we error out if ips are explicitly stated in the env file?
 
     my $instances = $self->env->lookup('params.ocfp_instances');
     bail(
       "Only %s instances available under OCFP; environment requested %s",
       @ips, $instances
-    ) if ($instances > @ips);
+    ) if defined($instances) && $instances > @ips;
     $instances ||= @ips;
 
     @ips = @ips[0..$instances-1];
     @azs = @azs[0..$instances-1];
-    my $network_name = "$GENESIS_ENV.$GENESIS_TYPE.net-vault";
+    my $network_name = "$ENV{GENESIS_ENVIRONMENT}.$ENV{GENESIS_TYPE}.net-vault";
 
-    my $dynamic_static_fragment = << "EOF";
+    $dynamic_static_fragment = << "EOF";
 exodus:
-  ips: $(\(join ',',@ips))
+  ips: ${\(join ',', @ips)}
 
 instance_groups:
 - name: vault
@@ -63,26 +68,27 @@ instance_groups:
   networks:
   - (( replace ))
   - name: $network_name
-    static_ips:${\(join "\n  - ", '', @ips)}
+    static_ips:${\(join "\n    - ", '', @ips)}
 EOF
 
   } elsif (my $instances = @$ips) {
-    my $dynamic-static-ips = <<"EOF";
+    $dynamic_static_fragment = <<"EOF";
 exodus:
-  ips: $ips 
+  ips: ${\(join ',', @$ips)}
 
 instance_groups:
 - name: vault
-  instances: $instance
+  instances: $instances
   networks:
-  - name: vault
-    static_ips:${\(join '\n    - ', '', $ips)}
+  - name: (( grab params.vault_network || "vault" ))
+    static_ips:${\(join "\n    - ", '', @$ips)}
 EOF
   }
+  # TODO: What about ips that aren't specified or in OCFP?  What should go in exodus?
 
   if ($dynamic_static_fragment) {
-    my $satics_file = "manifests/network.dynamic.yml";
-    mkfile_or_fail($self->env->kit->workpath($statics_file), 0644, $contents);
+    my $statics_file = "manifests/network.dynamic.yml";
+    mkfile_or_fail($self->env->kit->path($statics_file), 0644, $dynamic_static_fragment);
     $self->add_files($statics_file);
   }
 
