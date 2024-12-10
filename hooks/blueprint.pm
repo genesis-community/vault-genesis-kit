@@ -46,12 +46,11 @@ sub perform {
 
     # FIXME: Should we error out if ips are explicitly stated in the env file?
 
-    my $instances = $self->env->lookup('params.ocfp_instances');
+    my $instances = $self->env->lookup('params.ocfp_instances') || @ips;
     bail(
       "Only %s instances available under OCFP; environment requested %s",
       @ips, $instances
-    ) if defined($instances) && $instances > @ips;
-    $instances ||= @ips;
+    ) if $instances > @ips;
 
     @ips = @ips[0..$instances-1];
     @azs = @azs[0..$instances-1];
@@ -94,7 +93,7 @@ EOF
 
   $self->add_files('manifests/azure.yml') if ($self->iaas eq 'azure');
 
-  my @invalid_features = ();
+  my @invalid = ();
   for my $feature ($self->features) {
     if ($feature eq 'ocfp') {
       # TODO: Check if iaas-specific ocfp file is present, and error if not.
@@ -104,15 +103,15 @@ EOF
     } elsif (-f "$ENV{GENESIS_ROOT}/${feature}.yml") {
       $self->add_files("$ENV{GENESIS_ROOT}/${feature}.yml")
     } else {
-      push @invalid_features, $feature;
+      push @invalid, $feature;
     }
   }
 
   bail(
     "Invalid %s encountered: %s",
-    count_nouns(scalar(@invalid_features), 'feature', suppress_count => 1),
-    join(', ', @invalid_features)
-  ) if @invalid_features;
+    count_nouns(scalar(@invalid), 'feature', suppress_count => 1),
+    join(', ', @invalid)
+  ) if @invalid;
 
   $self->done(1);
 }
