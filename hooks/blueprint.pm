@@ -1,7 +1,10 @@
+#!/usr/bin/env perl
+# vim: set ts=2 sw=2 sts=2 foldmethod=marker
 package Genesis::Hook::Blueprint::Vault v4.0.0;
 
 use strict;
 use warnings;
+use v5.20; # Genesis min perl version is 5.20
 
 # Only needed for development
 BEGIN {push @INC, $ENV{GENESIS_LIB} ? $ENV{GENESIS_LIB} : $ENV{HOME}.'/.genesis/lib'}
@@ -69,7 +72,7 @@ EOF
   } elsif (my $instances = @$ips) {
     my $dynamic-static-ips = <<"EOF";
 exodus:
-  ips: $ips 
+  ips: $ips
 
 instance_groups:
 - name: vault
