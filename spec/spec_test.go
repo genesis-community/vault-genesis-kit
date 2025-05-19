@@ -32,5 +32,11 @@ var _ = Describe("Vault Kit", func() {
 			CloudConfig: "azure",
 			CPI:         "azure",
 		})
+		
+		Test(Environment{
+			Name:        "stackit",
+			CloudConfig: "stackit",
+			CPI:         "stackit",
+		})
 	})
 })

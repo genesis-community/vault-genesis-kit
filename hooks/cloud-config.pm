@@ -23,6 +23,13 @@ sub init {
 	return $obj;
 }
 
+sub stackit_subnet_reference {
+	my ($self, $property) = @_;
+	# Custom method to handle stackit's 1:1 network:subnet relationship
+	# This extracts subnet information directly instead of using network references
+	return $self->subnet_reference($property);
+}
+
 sub perform {
 	my ($self) = @_;
 	return 1 if $self->completed;
@@ -40,14 +47,28 @@ sub perform {
 							'net_id' => $self->network_reference('id'), # TODO: $self->subnet_reference('net_id'),
 							'security_groups' => ['default'] #$self->subnet_reference('sgs', 'get_security_groups'),
 						},
+						stackit => {
+							'net_id' => $self->subnet_reference('id'), # Use subnet_reference for 1:1 network:subnet relationship
+							'security_groups' => ['default'] #$self->subnet_reference('sgs', 'get_security_groups'),
+						},
 					},
-				},
+				}
 			)
 		],
 		'vm_types' => [
 			$self->vm_type_definition('vault',
 				cloud_properties_for_iaas => {
 					openstack => {
+						'instance_type' => $self->for_scale({
+							dev => 'm1.2',
+							prod => 'm1.3'
+						}, 'm1.2'),
+						'boot_from_volume' => $self->TRUE,
+						'root_disk' => {
+							'size' => 32 # in gigabytes
+						},
+					},
+					stackit => {
 						'instance_type' => $self->for_scale({
 							dev => 'm1.2',
 							prod => 'm1.3'
@@ -70,6 +91,9 @@ sub perform {
 				},
 				cloud_properties_for_iaas => {
 					openstack => {
+						'type' => 'storage_premium_perf6',
+					},
+					stackit => {
 						'type' => 'storage_premium_perf6',
 					},
 				},

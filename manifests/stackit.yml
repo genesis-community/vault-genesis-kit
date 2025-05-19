@@ -1,0 +1,7 @@
+---
+# Stackit-specific configurations for Vault
+
+# Add VM extensions for stackit if needed
+instance_groups:
+- name: vault
+  vm_extensions: []  # Add any stackit-specific extensions here if needed
