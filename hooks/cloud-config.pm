@@ -43,6 +43,9 @@ sub perform {
 						statics => 0,
 					},
 					cloud_properties_for_iaas => {
+						aws => {
+							'subnet' => $self->subnet_reference('id'),
+						},
 						openstack => {
 							'net_id' => $self->network_reference('id'), # TODO: $self->subnet_reference('net_id'),
 							'security_groups' => ['default'] #$self->subnet_reference('sgs', 'get_security_groups'),
@@ -58,6 +61,23 @@ sub perform {
 		'vm_types' => [
 			$self->vm_type_definition('vault',
 				cloud_properties_for_iaas => {
+					aws => {
+						'instance_type' => $self->for_scale({
+							dev => 't3.medium',
+							prod => 'm6i.large'
+						}, 't3.medium'),
+						'ephemeral_disk' => {
+							'encrypted' => $self->TRUE,
+							'size' => $self->for_scale({
+								dev => 4096,
+								prod => 16384
+							}, 4096),
+							'type' => 'gp3'
+						},
+						'metadata_options' => {
+							'http_tokens' => 'required'
+						},
+					},
 					openstack => {
 						'instance_type' => $self->for_scale({
 							dev => 'm1.2',
@@ -90,6 +110,10 @@ sub perform {
 					}, gigabytes(96)),
 				},
 				cloud_properties_for_iaas => {
+					aws => {
+						'encrypted' => $self->TRUE,
+						'type' => 'gp3',
+					},
 					openstack => {
 						'type' => 'storage_premium_perf6',
 					},
@@ -98,6 +122,18 @@ sub perform {
 					},
 				},
 			),
+		],
+		'vm_extensions' => [
+			{
+				'name' => 'vault-lb',
+				'cloud_properties' => {
+					'aws' => {
+						'lb_target_groups' => [
+							$self->param('vault_lb_target_group', 'ocfp-mgmt-vault-lb-tg')
+						]
+					}
+				}
+			}
 		],
 	});
 
