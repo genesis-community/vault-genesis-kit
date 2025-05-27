@@ -11,6 +11,14 @@ docs:   https://genesisproject.io/docs/
 
 genesis_version_min: 3.1.0-rc.9
 
+supports:
+- aws
+- azure
+- gcp
+- openstack
+- vsphere
+- stackit
+
 certificates:
   base:
     certs:
