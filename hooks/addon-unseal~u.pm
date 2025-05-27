@@ -34,7 +34,7 @@ sub perform {
     'safe -T ' . $env->name . ' unseal'
   );
 
-  return $self->done(1);
+  return $self->done();
 }
 
 1;

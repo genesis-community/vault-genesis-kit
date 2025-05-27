@@ -55,7 +55,7 @@ sub perform {
   # Offer to open the environment file in an editor
   run({ interactive => 1 }, 'offer_environment_editor');
 
-  return $self->done(1);
+  return $self->done();
 }
 
 1;

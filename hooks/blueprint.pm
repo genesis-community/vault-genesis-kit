@@ -112,7 +112,7 @@ EOF
     join(', ', @invalid_features)
   ) if @invalid_features;
 
-  $self->done(1);
+  return $self->done();
 }
 
 1;

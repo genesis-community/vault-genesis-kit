@@ -77,7 +77,8 @@ sub perform {
   }
 
   describe("#R{Authentication Failed} (or secret/handshake doesn't exist)");
-  return $self->done(0);
+
+  return $self->done();
 }
 
 1;

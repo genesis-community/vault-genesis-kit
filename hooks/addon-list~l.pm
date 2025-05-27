@@ -42,7 +42,7 @@ sub perform {
   $env->notify("  unseal   Unseal the Vault.");
   $env->notify("");
 
-  return $self->done(1);
+  return $self->done();
 }
 
 1;

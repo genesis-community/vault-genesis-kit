@@ -38,7 +38,7 @@ sub perform {
   # Display usage instructions
   $self->display_usage_instructions();
 
-  return $self->done(1);
+  return $self->done();
 }
 
 sub display_vault_nodes {

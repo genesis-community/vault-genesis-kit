@@ -33,7 +33,7 @@ sub perform {
     'safe -T ' . $env->name . ' status'
   );
 
-  return $self->done(1);
+  return $self->done();
 }
 
 1;

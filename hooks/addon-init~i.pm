@@ -58,7 +58,7 @@ sub perform {
   }
 
   bail("Could not find a valid Vault node to initialize.");
-  return 0;
+  return $self->done();
 }
 
 1;

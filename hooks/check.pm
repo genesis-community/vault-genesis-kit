@@ -23,9 +23,14 @@ sub perform {
   # Add any vault-specific checks here
   # For now, report success as cloud config is handled separately
 
-  $env->notify(success => "environment files [#G{OK}]");
+  # Return the final result
+  if ($self->{ok}) {
+    $self->env->notify(success => "environment files [#G{OK}]");
+  } else {
+    $self->env->notify(error => "environment files [#R{FAILED}]");
+  }
 
-  return $self->done(1);
+  return $self->done($self->{ok});
 }
 
 1;

@@ -66,8 +66,7 @@ sub perform {
     }
   }
 
-  # Return success
-  return $self->done(1);
+  return $self->done();
 }
 
 1;
