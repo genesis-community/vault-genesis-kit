@@ -49,25 +49,19 @@ sub perform {
       );
     } else {
       # Provide instructions for manual initialization/unsealing
-      describe(
-        "Unable to unseal the vault.  If this is a new deployment, you will need to",
-        "initalize the vault first.  To do so, run",
-        "",
-        "  #G{genesis do $ENV{GENESIS_ENVIRONMENT} -- init}",
-        "",
-        "If this was not the initial deployment of the Vault, you will need to unseal it:",
-        "",
-        "  #G{genesis do $ENV{GENESIS_ENVIRONMENT} -- unseal}"
+      info(
+        "\nUnable to unseal the vault.  If this is a new deployment, you will need to\n",
+        "\ninitalize the vault first.  To do so, run\n",
+        "\t#G{genesis do $ENV{GENESIS_ENVIRONMENT} -- init}\n",
+        "\nIf this was not the initial deployment of the Vault, you will need to unseal it:\n",
+        "\t#G{genesis do $ENV{GENESIS_ENVIRONMENT} -- unseal}"
       );
     }
 
     # Provide info command reminder
-    describe(
-      "",
-      "For details about the deployment, run",
-      "",
-      "  #G{genesis info $ENV{GENESIS_ENVIRONMENT}}",
-      ""
+    info(
+      "\n\nFor details about the deployment, run\n",
+      "\t#G{genesis info $ENV{GENESIS_ENVIRONMENT}}\n\n",
     );
 
     # Check if KV versioning needs to be enabled
@@ -77,20 +71,16 @@ sub perform {
     );
 
     if ($rc == 0) {
-      describe(
+      info(
         "---",
         "",
-        "This version of Vault supports versioning secrets, but it does not automatically",
-        "update existing KV Secret Engine mounts.  To turn it on, you must run",
-        "",
-        "  #G{safe vault kv enable-versioning secret}",
-        "",
-        "You will need to be authorised with the root token, and have Vault v0.11.0 or",
-        "higher installed locally to perform this.",
-        "",
-        "#Y{NOTE:} Once versioning is turned on for a secrets backend, it cannot be",
-        "      turned off without deleting and recreating that backend.",
-        ""
+        "\n\nThis version of Vault supports versioning secrets, but it does not automatically",
+        "\update existing KV Secret Engine mounts.  To turn it on, you must run",
+        "\t#G{safe vault kv enable-versioning secret}",
+        "\n\nYou will need to be authorised with the root token, and have Vault v0.11.0 or",
+        "\nhigher installed locally to perform this.",
+        "\n#Y{NOTE:} Once versioning is turned on for a secrets backend, it cannot be\n",
+        "\tturned off without deleting and recreating that backend.\n\n",
       );
     }
   }
