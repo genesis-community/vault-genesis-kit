@@ -5,7 +5,6 @@ package Genesis::Hook::Check::Vault v2.2.0;
 use strict;
 use warnings;
 use v5.20; # Genesis min perl version is 5.20
-use Genesis qw/bail info describe/;
 use parent qw(Genesis::Hook);
 use lib $ENV{GENESIS_LIB} // "$ENV{HOME}/.genesis/lib";
 
