@@ -6,7 +6,7 @@ if [[ -n "$GENESIS_CLOUD_CONFIG" ]] ; then
   if ! want_feature proto; then
     cloud_config_needs vm_type    $(lookup params.vault_vm_type    default)
     cloud_config_needs network    $(lookup params.vault_network    vault)
-    cloud_config_needs disk_type  $(lookup params.vault_disk_pool  default)
+    cloud_config_needs disk_type  $(lookup params.vault_disk_type  default)
   fi
 
   case "$(bosh_cpi)" in
