@@ -127,11 +127,12 @@ sub perform {
 			{
 				'name' => 'vault-lb',
 				'cloud_properties' => {
-					'aws' => {
-						'lb_target_groups' => [
-							$self->param('vault_lb_target_group', 'ocfp-mgmt-vault-lb-tg')
-						]
-					}
+					aws => {
+						'lb_target_groups' => [$self->env->lookup(
+							'cloud-config.vault-lb-target-group',
+							'ocfp-' . ( $ENV{GENESIS_ENVIRONMENT} || 'mgmt' ) . '-vault-lb-tg'
+						)]
+					}					
 				}
 			}
 		],
