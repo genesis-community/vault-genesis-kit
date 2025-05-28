@@ -26,43 +26,40 @@ sub perform {
   # Ensure datafile directory exists
   make_path(dirname($datafile)) unless -d dirname($datafile);
 
-  # Check if this environment exists as a safe target
-  my ($out, $rc) = run(
-    { stderr => 0 },
-    'safe targets --json | jq -e --arg alias "$1" \'.[] |select(.name == $alias)\' &>/dev/null',
-    $ENV{GENESIS_ENVIRONMENT}
-  );
-
-  if ($rc == 0) {
-    # Try to retrieve vault seal keys
-    my $i = 1;
-    open my $fh, '>', $datafile or bail("Cannot open $datafile for writing: $!");
-
-    while (1) {
-      # Check if the key exists
-      my ($exists_out, $exists_rc) = run(
-        { stderr => 0 },
-        'safe exists "secret/vault/seal/keys:key' . $i . '"'
-      );
-
-      last if $exists_rc != 0;  # Stop if key doesn't exist
-
-      # Read the key value and write to datafile
-      my ($key_out, $key_rc) = run(
-        { stderr => 0 },
-        'safe -T "$1" read "secret/vault/seal/keys:key' . $i . '"',
-        $ENV{GENESIS_ENVIRONMENT}
-      );
-
-      print $fh $key_out;
-      $i++;
-    }
-
-    close $fh;
-
-    # Remove empty datafile
-    if (-z $datafile) {
-      unlink $datafile;
+  # Try to get vault access for this environment
+  # This will return undef if vault doesn't exist yet (first deployment)
+  my $vault = $env->vault;
+  
+  if ($vault) {
+    # Check if vault seal keys exist
+    if ($vault->has("secret/vault/seal/keys")) {
+      # Try to retrieve vault seal keys
+      eval {
+        my $seal_data = $vault->get("secret/vault/seal/keys");
+        
+        open my $fh, '>', $datafile or bail("Cannot open $datafile for writing: $!");
+        
+        # Write each key to the datafile
+        for (my $i = 1; $i <= 3; $i++) {
+          my $key_name = "key$i";
+          if (exists $seal_data->{$key_name} && defined $seal_data->{$key_name}) {
+            print $fh $seal_data->{$key_name} . "\n";
+          }
+        }
+        
+        close $fh;
+      };
+      
+      # If we encountered any errors, remove the datafile
+      if ($@) {
+        unlink $datafile if -e $datafile;
+        info("Unable to retrieve seal keys: $@");
+      }
+      
+      # Remove empty datafile
+      if (-e $datafile && -z $datafile) {
+        unlink $datafile;
+      }
     }
   }
 
