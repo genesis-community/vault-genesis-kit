@@ -12,6 +12,7 @@ sub init {
   my ($class, %ops) = @_;
   my $obj = $class->SUPER::init(%ops);
   $obj->check_minimum_genesis_version('3.1.0-rc.20');
+  $obj->{ok} = 1;
   return $obj;
 }
 
