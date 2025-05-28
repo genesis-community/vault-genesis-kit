@@ -5,7 +5,7 @@ package Genesis::Hook::PostDeploy::Vault v4.0.0;
 use strict;
 use warnings;
 use v5.20; # Genesis min perl version is 5.20
-use Genesis qw/describe run/;
+use Genesis qw/info run/;
 use parent qw(Genesis::Hook::PostDeploy);
 use lib $ENV{GENESIS_LIB} // "$ENV{HOME}/.genesis/lib";
 
@@ -25,9 +25,7 @@ sub perform {
 
   # Only proceed if deployment was successful
   if ($self->deploy_successful) {
-    $env->notify("");
-    describe("#M{$ENV{GENESIS_ENVIRONMENT}} Vault deployed!");
-    $env->notify("");
+    info("\n#M{$ENV{GENESIS_ENVIRONMENT}} Vault deployed!\n");
 
     # Check if we have pre-deploy data for automatic unsealing
     if (-s "$ENV{GENESIS_PREDEPLOY_DATAFILE}" && $env->lookup('params.auxiliary_vault') ne "true") {
