@@ -5,7 +5,7 @@ package Genesis::Hook::PreDeploy::Vault v4.0.0;
 use strict;
 use warnings;
 use v5.20; # Genesis min perl version is 5.20
-use Genesis qw/bail info run/;
+use Genesis qw/bail info run trace/;
 use parent qw(Genesis::Hook);
 use lib $ENV{GENESIS_LIB} // "$ENV{HOME}/.genesis/lib";
 use File::Basename qw/dirname/;
@@ -23,6 +23,7 @@ sub perform {
   my $env = $self->env;
   my $datafile = $ENV{GENESIS_PREDEPLOY_DATAFILE};
 
+  info("Checking for existing Vault");
   # Ensure datafile directory exists
   make_path(dirname($datafile)) unless -d dirname($datafile);
 
@@ -31,11 +32,13 @@ sub perform {
   my $vault = $env->vault;
   
   if ($vault) {
+    trace("Attempting to grab seal keys");
     # Check if vault seal keys exist
     if ($vault->has("secret/vault/seal/keys")) {
       # Try to retrieve vault seal keys
       eval {
         my $seal_data = $vault->get("secret/vault/seal/keys");
+        trace("writing seal keys");
         
         open my $fh, '>', $datafile or bail("Cannot open $datafile for writing: $!");
         
@@ -63,7 +66,8 @@ sub perform {
     }
   }
 
-  return $self->done();
+  trace("Done seal key task");
+  return $self->done(1);
 }
 
 1;

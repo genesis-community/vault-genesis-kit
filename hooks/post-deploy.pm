@@ -20,9 +20,6 @@ sub perform {
   my ($self) = @_;
   my $env = $self->env;
 
-  # Call the parent's perform method first to ensure base functionality
-  $self->SUPER::perform();
-
   # Only proceed if deployment was successful
   if ($self->deploy_successful) {
     info("\n#M{$ENV{GENESIS_ENVIRONMENT}} Vault deployed!\n");

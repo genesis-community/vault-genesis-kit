@@ -52,7 +52,7 @@ sub perform {
 						},
 						stackit => {
 							'net_id' => $self->subnet_reference('id'), # Use subnet_reference for 1:1 network:subnet relationship
-							'security_groups' => ['default'] #$self->subnet_reference('sgs', 'get_security_groups'),
+							'security_groups' => $self->network_reference('sgs', 'get_sgs_by_names', 'ocfp', 'default'),
 						},
 					},
 				}
@@ -141,4 +141,10 @@ sub perform {
 	$self->done($config);
 }
 
+sub get_sgs_by_names {
+	my ($self, $subnet_data, $ref, @names) = @_;
+	my @ids = map {$subnet_data->{$ref}{$_}{id}} @names;
+	# TODO: Error checking
+	return \@ids
+}
 1;
