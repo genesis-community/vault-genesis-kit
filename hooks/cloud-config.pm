@@ -51,7 +51,7 @@ sub perform {
 							'security_groups' => ['default'] #$self->subnet_reference('sgs', 'get_security_groups'),
 						},
 						stackit => {
-							'net_id' => $self->subnet_reference('id'), # Use subnet_reference for 1:1 network:subnet relationship
+							'net_id' => $self->subnet_reference('parent_network_id'), # Use subnet_reference for 1:1 network:subnet relationship
 							'security_groups' => $self->network_reference('sgs', 'get_sgs_by_names', 'ocfp', 'default'),
 						},
 					},
@@ -124,9 +124,8 @@ sub perform {
 			),
 		],
 		'vm_extensions' => [
-			{
-				'name' => 'vault-lb',
-				'cloud_properties' => {
+			$self->vm_extension_definition('vault-lb',
+				'cloud_properties_for_iaas' => {
 					aws => {
 						'lb_target_groups' => [$self->env->lookup(
 							'cloud-config.vault-lb-target-group',
@@ -134,7 +133,7 @@ sub perform {
 						)]
 					}					
 				}
-			}
+			)
 		],
 	});
 
