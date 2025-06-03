@@ -51,7 +51,7 @@ sub perform {
 							'security_groups' => ['default'] #$self->subnet_reference('sgs', 'get_security_groups'),
 						},
 						stackit => {
-							'net_id' => $self->subnet_reference('parent_network_id'), # Use subnet_reference for 1:1 network:subnet relationship
+							'net_id' => $self->network_reference('id'),
 							'security_groups' => $self->network_reference('sgs', 'get_sgs_by_names', 'ocfp', 'default'),
 						},
 					},

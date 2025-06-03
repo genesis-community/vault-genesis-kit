@@ -35,7 +35,7 @@ sub perform {
   my $dynamic_static_fragment = '';
   if ($self->want_feature('ocfp')) {
     # Determine instance count and IPs from ocfp config
-    my $subnets = $self->env->ocfp_config_lookup('vpc.subnets');
+    my $subnets = $self->env->ocfp_config_lookup('net.subnets');
     my $prefix = $self->env->ocfp_subnet_prefix;
     my $az_map = $self->env->director_exodus_lookup('/network')->{azs};
 
