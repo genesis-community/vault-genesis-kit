@@ -1,73 +1,90 @@
-#!/usr/bin/env perl
-# vim: set ts=2 sw=2 sts=2 foldmethod=marker
-package Genesis::Hook::PreDeploy::Vault v4.0.0;
+# vim: set ts=2 sw=2 sts=2 noet fdm=marker foldlevel=1:
+package Genesis::Hook::PreDeploy::Vault;
 
-use strict;
+use v5.20;
 use warnings;
-use v5.20; # Genesis min perl version is 5.20
-use Genesis qw/bail info run trace/;
-use parent qw(Genesis::Hook);
-use lib $ENV{GENESIS_LIB} // "$ENV{HOME}/.genesis/lib";
-use File::Basename qw/dirname/;
-use File::Path qw/make_path/;
 
+# Only needed for development
+BEGIN {push @INC, $ENV{GENESIS_LIB} ? $ENV{GENESIS_LIB} : $ENV{HOME}.'/.genesis/lib'}
+
+use parent qw(Genesis::Hook::PreDeploy);
+
+use Genesis qw/bail info run/;
+
+# init - Initialize the hook {{{
 sub init {
   my ($class, %ops) = @_;
   my $obj = $class->SUPER::init(%ops);
-  $obj->check_minimum_genesis_version('3.1.0-rc.20');
+  $obj->check_minimum_genesis_version('3.1.0');
   return $obj;
 }
+# }}}
 
+# perform - Main hook execution {{{
 sub perform {
   my ($self) = @_;
-  my $env = $self->env;
-  my $datafile = $ENV{GENESIS_PREDEPLOY_DATAFILE};
-
-  info("Checking for existing Vault");
-  # Ensure datafile directory exists
-  make_path(dirname($datafile)) unless -d dirname($datafile);
-
-  # Try to get vault access for this environment
-  # This will return undef if vault doesn't exist yet (first deployment)
-  my $vault = $env->vault;
   
-  if ($vault) {
-    trace("Attempting to grab seal keys");
-    # Check if vault seal keys exist
-    if ($vault->has("secret/vault/seal/keys")) {
-      # Try to retrieve vault seal keys
-      eval {
-        my $seal_data = $vault->get("secret/vault/seal/keys");
-        trace("writing seal keys");
-        
-        open my $fh, '>', $datafile or bail("Cannot open $datafile for writing: $!");
-        
-        # Write each key to the datafile
-        for (my $i = 1; $i <= 3; $i++) {
-          my $key_name = "key$i";
-          if (exists $seal_data->{$key_name} && defined $seal_data->{$key_name}) {
-            print $fh $seal_data->{$key_name} . "\n";
+  # Check if the vault is already targeted
+  my ($targets_out, $targets_rc) = run({ stderr => 0 },
+    'safe', 'targets', '--json'
+  );
+  
+  if ($targets_rc == 0) {
+    # Parse JSON to check if our environment is already targeted
+    eval {
+      require JSON::PP;
+      my $targets = JSON::PP::decode_json($targets_out);
+      
+      foreach my $target (@$targets) {
+        if ($target->{name} && $target->{name} eq $ENV{GENESIS_ENVIRONMENT}) {
+          # Try to retrieve seal keys
+          my $i = 1;
+          my @keys;
+          
+          while (1) {
+            my ($key, $rc) = run({ stderr => 0 },
+              'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'exists', "secret/vault/seal/keys:key$i"
+            );
+            
+            last if $rc != 0;
+            
+            ($key, $rc) = run({ stderr => 0 },
+              'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'read', "secret/vault/seal/keys:key$i"
+            );
+            
+            if ($rc == 0 && $key) {
+              chomp $key;
+              push @keys, $key;
+            }
+            
+            $i++;
           }
+          
+          # Write keys to datafile if we found any
+          if (@keys) {
+            open my $fh, '>', $ENV{GENESIS_PREDEPLOY_DATAFILE} 
+              or bail("Cannot open $ENV{GENESIS_PREDEPLOY_DATAFILE} for writing: $!");
+            
+            foreach my $key (@keys) {
+              print $fh "$key\n";
+            }
+            
+            close $fh;
+          }
+          
+          # Remove empty datafile
+          if (-e $ENV{GENESIS_PREDEPLOY_DATAFILE} && -z $ENV{GENESIS_PREDEPLOY_DATAFILE}) {
+            unlink $ENV{GENESIS_PREDEPLOY_DATAFILE};
+          }
+          
+          last;
         }
-        
-        close $fh;
-      };
-      
-      # If we encountered any errors, remove the datafile
-      if ($@) {
-        unlink $datafile if -e $datafile;
-        info("Unable to retrieve seal keys: $@");
       }
-      
-      # Remove empty datafile
-      if (-e $datafile && -z $datafile) {
-        unlink $datafile;
-      }
-    }
+    };
   }
-
-  trace("Done seal key task");
-  return $self->done(1);
+  
+  return $self->done();
 }
+# }}}
 
 1;
