@@ -44,14 +44,26 @@ sub perform {
       push @ips, $ip;
       
       # Fetch AZ from vault based on environment type
-      my $env_type = $self->env->lookup('params.env_type', $ENV{GENESIS_TYPE} || '');
+      my $env_type = $self->env->lookup('params.env_type') || $ENV{GENESIS_TYPE} || '';
+      my $base = $self->env->ocfp_config_lookup('base') || '';
+      
+      if (!$base) {
+        bail("OCFP base configuration not found");
+      }
+      
       my $az_path = sprintf("secret/config/%s/%s/net/subnets/%s:az",
-        $self->env->ocfp_config_lookup('base'),
-        $env_type || '',
+        $base,
+        $env_type,
         $subnet
       );
-      my $az = $self->env->vault->get($az_path);
-      push @azs, $az_map->{$az}{name};
+      
+      my $az = eval { $self->env->vault->get($az_path) };
+      if (!$az) {
+        warning("Could not retrieve AZ for subnet %s from vault path %s", $subnet, $az_path);
+        push @azs, undef;
+      } else {
+        push @azs, $az_map->{$az}{name} || undef;
+      }
     }
 
     # FIXME: Should we error out if ips are explicitly stated in the env file?
@@ -65,6 +77,12 @@ sub perform {
     @ips = @ips[0..$instances-1];
     @azs = @azs[0..$instances-1];
     my $network_name = "$ENV{GENESIS_ENVIRONMENT}.$ENV{GENESIS_TYPE}.net-vault";
+    
+    # Filter out undefined AZs and provide a default if all are undefined
+    my @valid_azs = grep { defined $_ } @azs;
+    if (!@valid_azs) {
+      bail("No valid availability zones found for Vault instances");
+    }
 
     $dynamic_static_fragment = << "EOF";
 exodus:
@@ -72,7 +90,7 @@ exodus:
 
 instance_groups:
 - name: vault
-  azs:${\(join "\n  - ", '','(( replace ))', @azs)}
+  azs:${\(join "\n  - ", '','(( replace ))', @valid_azs)}
   instances: $instances
   networks:
   - (( replace ))
