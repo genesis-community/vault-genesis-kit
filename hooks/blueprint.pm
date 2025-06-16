@@ -44,13 +44,13 @@ sub perform {
       push @ips, $ip;
       
       # Fetch AZ from vault based on environment type
-      my $env_type = $self->env->lookup('params.env_type', $ENV{GENESIS_TYPE});
+      my $env_type = $self->env->lookup('params.env_type', $ENV{GENESIS_TYPE} || '');
       my $az_path = sprintf("secret/config/%s/%s/net/subnets/%s:az",
         $self->env->ocfp_config_lookup('base'),
-        $env_type,
+        $env_type || '',
         $subnet
       );
-      my $az = $self->env->vault_lookup($az_path);
+      my $az = $self->env->vault->get($az_path);
       push @azs, $az_map->{$az}{name};
     }
 
