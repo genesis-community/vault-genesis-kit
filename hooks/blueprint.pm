@@ -43,17 +43,10 @@ sub perform {
       next unless $ip;
       push @ips, $ip;
       
-      # Fetch AZ from vault based on environment type
-      my $env_type = $self->env->type;
-      my $az_path = sprintf("secret/config/%s/%s/net/subnets/%s:az",
-        $self->env->ocfp_config_lookup('base'),
-        $env_type,
-        $subnet
-      );
-      
-      my $az = eval { $self->env->vault->get($az_path) };
+      # Get AZ from subnet data
+      my $az = $subnets->{$subnet}{az};
       if (!$az) {
-        warning("Could not retrieve AZ for subnet %s from vault path %s", $subnet, $az_path);
+        warning("No AZ found for subnet %s", $subnet);
         push @azs, undef;
       } else {
         push @azs, $az_map->{$az}{name} || undef;
