@@ -44,15 +44,9 @@ sub perform {
       push @ips, $ip;
       
       # Fetch AZ from vault based on environment type
-      my $env_type = $self->env->lookup('params.env_type') || $ENV{GENESIS_TYPE} || '';
-      my $base = $self->env->ocfp_config_lookup('base') || '';
-      
-      if (!$base) {
-        bail("OCFP base configuration not found");
-      }
-      
+      my $env_type = $self->env->type;
       my $az_path = sprintf("secret/config/%s/%s/net/subnets/%s:az",
-        $base,
+        $self->env->ocfp_config_lookup('base'),
         $env_type,
         $subnet
       );
