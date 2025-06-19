@@ -27,7 +27,7 @@ sub perform {
   # Get the authentication method (default to 'token')
   my $method = $self->{args}[0] || 'token';
 
-  $env->notify("");
+  info("");
 
   # Find the domain to connect to
   my $domain = $env->lookup('params.vault_domain', '');

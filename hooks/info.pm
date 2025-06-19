@@ -24,29 +24,17 @@ sub init {
 sub perform {
   my ($self) = @_;
 
-  # Simple implementation matching bash version
-  info("vault nodes:");
-
-  my ($out, $rc, $stderr) = $self->bosh->execute(
-		{interactive => 0},
-		'bosh', 'vms', '--json', '--tty', $self->env-name
-	);
-	run('bosh', 'vms', '--json');
+	my ($data, $rc, $stderr) = read_json_from($self->env->bosh->execute(
+			{interactive => 0}, 'bosh', 'vms', '--json'
+		));
   bail("Failed to get VMs: $stderr") if $rc;
 
-  my $data = decode_json($out);
+  info("Vault Nodes:");
   my @ips;
-
-  if ($data->{Tables} && @{$data->{Tables}} && $data->{Tables}[0]{Rows}) {
-    foreach my $row (@{$data->{Tables}[0]{Rows}}) {
-      push @ips, split(/,/, $row->{ips}) if $row->{ips};
-    }
-  }
-
-  foreach my $ip (@ips) {
-    info("  https://$ip");
-  }
-
+	for my $row ($data->{Tables}[0]{Rows}->@*) {
+		next unless $row->{ips};
+		info("  https://%s", split(/,/, $row->{ips}) );
+	}
   return $self->done(1);
 }
 # }}}

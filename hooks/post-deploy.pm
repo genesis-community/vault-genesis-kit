@@ -68,9 +68,8 @@ sub perform {
 
     if ($rc == 0 && $out =~ /^secret\/.*map\[version:1\]/m) {
       info(
-        "--\n".
         "---\n".
-        "\n".
+        "\n\n".
         "This version of Vault supports versioning secrets, but it does not automatically\n".
         "update existing KV Secret Engine mounts.  To turn it on, you must run\n".
         "\n".

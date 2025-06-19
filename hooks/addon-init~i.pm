@@ -26,7 +26,7 @@ sub perform {
   my ($self) = @_;
   my $env = $self->env;
 
-  $env->notify("");
+  info("");
 
   # Try to find a Vault node to initialize
   my ($out, $rc) = read_json_from($self->env->bosh->execute('vms','--json'));

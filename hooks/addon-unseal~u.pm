@@ -24,7 +24,7 @@ sub perform {
   my ($self) = @_;
   my $env = $self->env;
 
-  $env->notify("");
+  info("");
 
   # Run the safe unseal command on the targeted Vault
   run(

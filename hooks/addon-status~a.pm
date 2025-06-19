@@ -23,7 +23,7 @@ sub perform {
   my ($self) = @_;
   my $env = $self->env;
 
-  $env->notify("");
+  info("");
 
   # Run the safe status command on the targeted Vault
   run(

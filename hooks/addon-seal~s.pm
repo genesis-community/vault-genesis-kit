@@ -24,7 +24,7 @@ sub perform {
   my ($self) = @_;
   my $env = $self->env;
 
-  $env->notify("");
+  info("");
 
   # Run the safe seal command on the targeted Vault
   run(
