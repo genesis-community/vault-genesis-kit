@@ -1,4 +1,3 @@
-# vim: set ts=2 sw=2 sts=2 noet fdm=marker foldlevel=1:
 package Genesis::Hook::New::Vault;
 
 use v5.20;
@@ -24,12 +23,12 @@ sub init {
 # perform - Main hook execution {{{
 sub perform {
   my ($self) = @_;
-  
+
   # Ask if this is the Genesis Vault (for storing deployment credentials)
   my $genesis_vault = prompt_for_boolean(
     'Is this your Genesis Vault (for storing deployment credentials)?'
   );
-  
+
   # Build the environment file content
   my $file_content = "---\n";
   $file_content .= "kit:\n";
@@ -37,7 +36,7 @@ sub perform {
   $file_content .= "  version: $ENV{GENESIS_KIT_VERSION}\n";
   $file_content .= "\n";
   $file_content .= $self->env->genesis_config_block;
-  
+
   # Add auxiliary_vault param if not a genesis vault
   if (!$genesis_vault) {
     $file_content .= "params:\n";
@@ -45,12 +44,13 @@ sub perform {
   } else {
     $file_content .= "params: {}\n";
   }
-  
+
   # Write the environment file
   $self->env->write_manifest($file_content);
-  
+
   return $self->done();
 }
 # }}}
 
 1;
+# vim: set ts=2 sw=2 sts=2 noet fdm=marker foldlevel=1:

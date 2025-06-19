@@ -1,4 +1,3 @@
-# vim: set ts=2 sw=2 sts=2 noet fdm=marker foldlevel=1:
 package Genesis::Hook::PostDeploy::Vault;
 
 use v5.20;
@@ -23,25 +22,25 @@ sub init {
 # perform - Main hook execution {{{
 sub perform {
   my ($self) = @_;
-  
+
   # Only proceed if deployment was successful
   if ($ENV{GENESIS_DEPLOY_RC} == 0) {
     info("");
     describe("#M{$ENV{GENESIS_ENVIRONMENT}} Vault deployed!");
     info("");
-    
+
     # Check if we have pre-deploy data for automatic unsealing
     if (-s $ENV{GENESIS_PREDEPLOY_DATAFILE} && $self->env->lookup('params.auxiliary_vault', '') ne "true") {
       info("Unsealing the vault...");
-      
+
       # Unseal the vault using the keys from pre-deploy
-      run({ interactive => 1 }, 
-        'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'unseal', 
+      run({ interactive => 1 },
+        'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'unseal',
         { stdin => $ENV{GENESIS_PREDEPLOY_DATAFILE} }
       );
-      
+
       # Display vault status
-      run({ interactive => 1 }, 
+      run({ interactive => 1 },
         'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'status'
       );
     } else {
@@ -56,7 +55,7 @@ sub perform {
         "  #G{genesis do $ENV{GENESIS_ENVIRONMENT} -- unseal}"
       );
     }
-    
+
     describe(
       "",
       "For details about the deployment, run",
@@ -64,12 +63,12 @@ sub perform {
       "  #G{genesis info $ENV{GENESIS_ENVIRONMENT}}",
       ""
     );
-    
+
     # Check if KV versioning needs to be enabled
     my ($out, $rc) = run({ stderr => 0 },
       'safe', 'vault', 'secrets', 'list', '--detailed'
     );
-    
+
     if ($rc == 0 && $out =~ /^secret\/.*map\[version:1\]/m) {
       describe(
         "--",
@@ -89,10 +88,11 @@ sub perform {
       );
     }
   }
-  
+
   return $self->done();
 }
 # }}}
 
 1;
 
+# vim: set ts=2 sw=2 sts=2 noet fdm=marker foldlevel=1:

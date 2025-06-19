@@ -1,4 +1,3 @@
-# vim: set ts=2 sw=2 sts=2 noet fdm=marker foldlevel=1:
 package Genesis::Hook::Check::Vault;
 
 use v5.20;
@@ -24,28 +23,28 @@ sub init {
 sub perform {
   my ($self) = @_;
   my $ok = 1;
-  
+
   # Cloud Config checks
   if ($ENV{GENESIS_CLOUD_CONFIG}) {
     unless ($self->has_feature('proto')) {
       $self->start_check("Checking cloud config");
-      
+
       my @errors;
-      
+
       # Check required cloud config resources
       push @errors, $self->env->missing_cloud_config_keys(
         vm_type   => [$self->env->lookup('params.vault_vm_type',   'default')],
         network   => [$self->env->lookup('params.vault_network',   'vault')],
         disk_type => [$self->env->lookup('params.vault_disk_type', 'default')]
       );
-      
+
       # Azure-specific checks
       if ($self->env->cpi eq 'azure') {
         push @errors, $self->env->missing_cloud_config_keys(
           vm_extension => [$self->env->lookup('params.azure_availability_set', 'vault_as')]
         );
       }
-      
+
       if (@errors) {
         $self->check_result(0, join("\n", @errors));
         $ok = 0;
@@ -54,11 +53,10 @@ sub perform {
       }
     }
   }
-  
+
   return $self->done($ok);
 }
 # }}}
 
 1;
 # vim: set ts=2 sw=2 sts=2 noet fdm=marker foldlevel=1:
-

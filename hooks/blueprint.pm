@@ -1,4 +1,3 @@
-# vim: set ts=2 sw=2 sts=2 noet fdm=marker foldlevel=1:
 package Genesis::Hook::Blueprint::Vault;
 
 use v5.20;
@@ -42,7 +41,7 @@ sub perform {
       my $ip = $subnets->{$subnet}{'reserved-ips'}{'vault_ip'};
       next unless $ip;
       push @ips, $ip;
-      
+
       # Get AZ from subnet data
       my $az = $subnets->{$subnet}{az};
       if (!$az) {
@@ -64,7 +63,7 @@ sub perform {
     @ips = @ips[0..$instances-1];
     @azs = @azs[0..$instances-1];
     my $network_name = "$ENV{GENESIS_ENVIRONMENT}.$ENV{GENESIS_TYPE}.net-vault";
-    
+
     # Filter out undefined AZs and provide a default if all are undefined
     my @valid_azs = grep { defined $_ } @azs;
     if (!@valid_azs) {
@@ -132,3 +131,4 @@ EOF
 }
 
 1;
+# vim: set ts=2 sw=2 sts=2 noet fdm=marker foldlevel=1:

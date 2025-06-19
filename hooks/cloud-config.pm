@@ -1,4 +1,3 @@
-# vim: set ts=2 sw=2 sts=2 noet fdm=marker foldlevel=1:
 package Genesis::Hook::CloudConfig::Vault;
 
 use v5.20;
@@ -129,7 +128,7 @@ sub perform {
 							'cloud-config.vault-lb-target-group',
 							'ocfp-' . ( $ENV{GENESIS_ENVIRONMENT} || 'mgmt' ) . '-vault-lb-tg'
 						)]
-					}					
+					}
 				}
 			)
 		],
@@ -148,3 +147,4 @@ sub get_sgs_by_names {
 	return \@ids
 }
 1;
+# vim: set ts=2 sw=2 sts=2 noet fdm=marker foldlevel=1:
