@@ -6,9 +6,9 @@ use warnings;
 # Only needed for development
 BEGIN {push @INC, $ENV{GENESIS_LIB} ? $ENV{GENESIS_LIB} : $ENV{HOME}.'/.genesis/lib'}
 
-use parent qw(Genesis::Hook::Info);
+use parent qw(Genesis::Hook);
 
-use Genesis qw/bail info run describe/;
+use Genesis qw/bail info run/;
 use JSON::PP;
 
 # init - Initialize the hook {{{
@@ -27,8 +27,12 @@ sub perform {
   # Simple implementation matching bash version
   info("vault nodes:");
 
-  my ($out, $rc, $err) = run('bosh', 'vms', '--json');
-  bail("Failed to get VMs: $err") if $rc;
+  my ($out, $rc, $stderr) = $self->bosh->execute(
+		{interactive => 0},
+		'bosh', 'vms', '--json', '--tty', $self->env-name
+	);
+	run('bosh', 'vms', '--json');
+  bail("Failed to get VMs: $stderr") if $rc;
 
   my $data = decode_json($out);
   my @ips;
@@ -43,7 +47,7 @@ sub perform {
     info("  https://$ip");
   }
 
-  return $self->done();
+  return $self->done(1);
 }
 # }}}
 
