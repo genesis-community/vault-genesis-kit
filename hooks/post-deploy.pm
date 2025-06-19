@@ -8,7 +8,7 @@ BEGIN {push @INC, $ENV{GENESIS_LIB} ? $ENV{GENESIS_LIB} : $ENV{HOME}.'/.genesis/
 
 use parent qw(Genesis::Hook::PostDeploy);
 
-use Genesis qw/info run describe/;
+use Genesis qw/info run/;
 
 # init - Initialize the hook {{{
 sub init {
@@ -26,7 +26,7 @@ sub perform {
   # Only proceed if deployment was successful
   if ($ENV{GENESIS_DEPLOY_RC} == 0) {
     info("");
-    describe("#M{$ENV{GENESIS_ENVIRONMENT}} Vault deployed!");
+    info("#M{$ENV{GENESIS_ENVIRONMENT}} Vault deployed!");
     info("");
 
     # Check if we have pre-deploy data for automatic unsealing
@@ -44,24 +44,19 @@ sub perform {
         'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'status'
       );
     } else {
-      describe(
-        "Unable to unseal the vault.  If this is a new deployment, you will need to",
-        "initalize the vault first.  To do so, run",
-        "",
-        "  #G{genesis do $ENV{GENESIS_ENVIRONMENT} -- init}",
-        "",
-        "If this was not the initial deployment of the Vault, you will need to unseal it:",
-        "",
-        "  #G{genesis do $ENV{GENESIS_ENVIRONMENT} -- unseal}"
+      info(
+        "Unable to unseal the vault.  If this is a new deployment, you will need to\n".
+        "initalize the vault first.  To do so, run\n\n".
+        "  #G{genesis do %s -- init}\n\n".
+        "If this was not the initial deployment of the Vault, you will need to unseal it:\n\n".
+        "  #G{genesis do %s -- unseal}\n",
+	$ENV{GENESIS_ENVIRONMENT}, $ENV{GENESIS_ENVIRONMENT}
       );
     }
 
-    describe(
-      "",
-      "For details about the deployment, run",
-      "",
-      "  #G{genesis info $ENV{GENESIS_ENVIRONMENT}}",
-      ""
+    info(
+      "For details about the deployment, run".
+      "  #G{genesis info $ENV{GENESIS_ENVIRONMENT}}"
     );
 
     # Check if KV versioning needs to be enabled
@@ -70,26 +65,25 @@ sub perform {
     );
 
     if ($rc == 0 && $out =~ /^secret\/.*map\[version:1\]/m) {
-      describe(
-        "--",
-        "---",
-        "",
-        "This version of Vault supports versioning secrets, but it does not automatically",
-        "update existing KV Secret Engine mounts.  To turn it on, you must run",
-        "",
-        "  #G{safe vault kv enable-versioning secret}",
-        "",
-        "You will need to be authorised with the root token, and have Vault v0.11.0 or",
-        "higher installed locally to perform this.",
-        "",
-        "#Y{NOTE:} Once versioning is turned on for a secrets backend, it cannot be",
-        "      turned off without deleting and recreating that backend.",
-        ""
+      info(
+        "--\n".
+        "---\n".
+        "\n".
+        "This version of Vault supports versioning secrets, but it does not automatically\n".
+        "update existing KV Secret Engine mounts.  To turn it on, you must run\n".
+        "\n".
+        "  #G{safe vault kv enable-versioning secret}\n".
+        "\n".
+        "You will need to be authorised with the root token, and have Vault v0.11.0 or\n".
+        "higher installed locally to perform this.\n".
+        "\n".
+        "#Y{NOTE:} Once versioning is turned on for a secrets backend, it cannot be\n".
+        "      turned off without deleting and recreating that backend.\n"
       );
     }
   }
 
-  return $self->done();
+  return $self->done(1);
 }
 # }}}
 
