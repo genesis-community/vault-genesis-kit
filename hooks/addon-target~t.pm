@@ -2,7 +2,7 @@ package Genesis::Hook::Addon::Vault::Target;
 
 use v5.20;
 use warnings; # Genesis min perl version is 5.20
-use Genesis qw/bail info run describe/;
+use Genesis qw/bail info run/;
 # Only needed for development
 BEGIN {push @INC, $ENV{GENESIS_LIB} ? $ENV{GENESIS_LIB} : $ENV{HOME}.'./.genesis/lib'}
 
@@ -69,12 +69,12 @@ sub perform {
   );
 
   if ($handshake_rc == 0) {
-    describe("", "Retrieving #Y{status} of Vault");
+    info("\n" . "Retrieving #Y{status} of Vault\n");
     run('safe -T ' . $env_name . ' status');
     return $self->done(1);
   }
 
-  describe("#R{Authentication Failed} (or secret/handshake doesn't exist)");
+  info("#R{Authentication Failed} (or secret/handshake doesn't exist)\n");
 
   return $self->done();
 }

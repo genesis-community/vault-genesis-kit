@@ -50,13 +50,15 @@ sub perform {
         "  #G{genesis do %s -- init}\n\n".
         "If this was not the initial deployment of the Vault, you will need to unseal it:\n\n".
         "  #G{genesis do %s -- unseal}\n",
-	$ENV{GENESIS_ENVIRONMENT}, $ENV{GENESIS_ENVIRONMENT}
+        $ENV{GENESIS_ENVIRONMENT}, $ENV{GENESIS_ENVIRONMENT}
       );
     }
 
     info(
-      "For details about the deployment, run".
-      "  #G{genesis info $ENV{GENESIS_ENVIRONMENT}}"
+      "\n".
+      "For details about the deployment, run\n\n".
+      "  #G{genesis info %s}\n\n",
+      $ENV{GENESIS_ENVIRONMENT}
     );
 
     # Check if KV versioning needs to be enabled
