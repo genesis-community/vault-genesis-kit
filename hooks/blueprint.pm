@@ -8,7 +8,7 @@ BEGIN {push @INC, $ENV{GENESIS_LIB} ? $ENV{GENESIS_LIB} : $ENV{HOME}.'/.genesis/
 
 use parent qw(Genesis::Hook::Blueprint);
 
-use Genesis qw/bail info warning error mkfile_or_fail/;
+use Genesis qw/bail info warning error mkfile_or_fail count_nouns/;
 
 sub init {
 	my $class = shift;
