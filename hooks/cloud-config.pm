@@ -121,8 +121,7 @@ sub perform {
 			),
 		],
 		'vm_extensions' => [
-			$self->vm_extension_definition('vault-lb',
-				'cloud_properties_for_iaas' => {
+			$self->vm_extension_definition('vault-lb' => {
 					aws => {
 						'lb_target_groups' => [$self->env->lookup(
 							'cloud-config.vault-lb-target-group',
