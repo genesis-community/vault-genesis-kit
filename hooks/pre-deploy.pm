@@ -23,63 +23,122 @@ sub init {
 sub perform {
 	my ($self) = @_;
 
+	# Skip automatic unseal for auxiliary vaults
+	if ($self->env->lookup('params.auxiliary_vault', '') eq 'true') {
+		info("Skipping seal key retrieval for auxiliary vault deployment");
+		return $self->done(1);
+	}
+
 	# Check if the vault is already targeted
+	info("Checking for existing Vault target: #C{$ENV{GENESIS_ENVIRONMENT}}");
 	my ($targets_out, $targets_rc) = run({ stderr => 0 },
 		'safe', 'targets', '--json'
 	);
 
-	if ($targets_rc == 0) {
-		# Parse JSON to check if our environment is already targeted
-		eval {
-			require JSON::PP;
-			my $targets = JSON::PP::decode_json($targets_out);
+	if ($targets_rc != 0) {
+		info("#Y{WARNING:} Could not retrieve safe targets - automatic unseal will not be available");
+		return $self->done(1);
+	}
 
-			foreach my $target (@$targets) {
-				if ($target->{name} && $target->{name} eq $ENV{GENESIS_ENVIRONMENT}) {
-					# Try to retrieve seal keys
-					my $i = 1;
-					my @keys;
+	# Parse JSON to check if our environment is already targeted
+	eval {
+		require JSON::PP;
+		my $targets = JSON::PP::decode_json($targets_out);
+		my $found_target = 0;
 
-					while (1) {
-						my ($key, $rc) = run({ stderr => 0 },
-							'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'exists', "secret/vault/seal/keys:key$i"
-						);
+		foreach my $target (@$targets) {
+			if ($target->{name} && $target->{name} eq $ENV{GENESIS_ENVIRONMENT}) {
+				$found_target = 1;
+				info("Found existing Vault target, retrieving seal keys...");
 
-						last if $rc != 0;
+				# Check if vault is initialized
+				my ($init_check, $init_rc) = run({ stderr => 0 },
+					'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'exists', 'secret/vault/seal/initialized'
+				);
 
-						($key, $rc) = run({ stderr => 0 },
-							'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'read', "secret/vault/seal/keys:key$i"
-						);
-
-						if ($rc == 0 && $key) {
-							chomp $key;
-							push @keys, $key;
-						}
-
-						$i++;
-					}
-
-					# Write keys to datafile if we found any
-					if (@keys) {
-						open my $fh, '>', $ENV{GENESIS_PREDEPLOY_DATAFILE}
-							or bail("Cannot open $ENV{GENESIS_PREDEPLOY_DATAFILE} for writing: $!");
-
-						foreach my $key (@keys) {
-							print $fh "$key\n";
-						}
-
-						close $fh;
-					}
-
-					# Remove empty datafile
-					if (-e $ENV{GENESIS_PREDEPLOY_DATAFILE} && -z $ENV{GENESIS_PREDEPLOY_DATAFILE}) {
-						unlink $ENV{GENESIS_PREDEPLOY_DATAFILE};
-					}
-
+				if ($init_rc != 0) {
+					info("Vault does not appear to be initialized - skipping seal key retrieval");
 					last;
 				}
+
+				# Try to retrieve seal keys
+				my @keys;
+				my $errors = 0;
+
+				for (my $i = 1; $i <= 10; $i++) { # Check up to 10 keys (reasonable upper limit)
+					my $key_path = "secret/vault/seal/keys:key$i";
+
+					# Check if key exists
+					my ($exists_out, $exists_rc) = run({ stderr => 0 },
+						'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'exists', $key_path
+					);
+
+					last if $exists_rc != 0; # No more keys
+
+					# Read the key value
+					my ($key_data, $read_rc) = run({ stderr => 0 },
+						'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'get', $key_path
+					);
+
+					if ($read_rc == 0 && $key_data) {
+						# Extract just the value from the output
+						# safe get outputs in format: key:value
+						if ($key_data =~ /^[^:]+:(.+)$/m) {
+							my $key_value = $1;
+							$key_value =~ s/^\s+|\s+$//g; # trim whitespace
+
+							# Validate key format
+							if ($key_value =~ /^[A-Za-z0-9+\/=]+$/) {
+								push @keys, $key_value;
+								info("  #G{✓} Retrieved seal key $i");
+							} else {
+								info("  #Y{⚠} Skipping invalid seal key $i");
+								$errors++;
+							}
+						}
+					} else {
+						info("  #R{✗} Failed to read seal key $i");
+						$errors++;
+					}
+				}
+
+				# Write keys to datafile if we found any
+				if (@keys) {
+					info("Retrieved " . scalar(@keys) . " seal keys" . ($errors ? " with $errors errors" : ""));
+
+					open my $fh, '>', $ENV{GENESIS_PREDEPLOY_DATAFILE}
+						or bail("Cannot open $ENV{GENESIS_PREDEPLOY_DATAFILE} for writing: $!");
+
+					foreach my $key (@keys) {
+						print $fh "$key\n";
+					}
+
+					close $fh;
+
+					info("#G{Seal keys saved for automatic post-deploy unseal}");
+				} else {
+					info("#Y{No seal keys found} - automatic unseal will not be available");
+					info("You will need to manually unseal the vault after deployment");
+				}
+
+				last;
 			}
-		};
+		}
+
+		unless ($found_target) {
+			info("Vault target #C{$ENV{GENESIS_ENVIRONMENT}} not found - this appears to be a new deployment");
+			info("Automatic unseal will be available after initialization");
+		}
+	};
+
+	if ($@) {
+		info("#Y{WARNING:} Error processing vault targets: $@");
+		info("Automatic unseal may not be available");
+	}
+
+	# Clean up empty datafile
+	if (-e $ENV{GENESIS_PREDEPLOY_DATAFILE} && -z $ENV{GENESIS_PREDEPLOY_DATAFILE}) {
+		unlink $ENV{GENESIS_PREDEPLOY_DATAFILE};
 	}
 
 	return $self->done(1);
