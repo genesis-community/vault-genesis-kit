@@ -87,9 +87,9 @@ sub perform {
 					},
 					stackit => {
 						'instance_type' => $self->for_scale({
-							dev => 'm1.2',
-							prod => 'm1.3'
-						}, 'm1.2'),
+							dev => 'm2.2',
+							prod => 'm2.3'
+						}, 'm2.2'),
 						'boot_from_volume' => $self->TRUE,
 						'root_disk' => {
 							'size' => 32 # in gigabytes
