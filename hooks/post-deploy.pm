@@ -9,6 +9,7 @@ BEGIN {push @INC, $ENV{GENESIS_LIB} ? $ENV{GENESIS_LIB} : $ENV{HOME}.'/.genesis/
 use parent qw(Genesis::Hook::PostDeploy);
 
 use Genesis qw/info run/;
+use JSON::PP;
 
 # init - Initialize the hook {{{
 sub init {
@@ -98,10 +99,16 @@ sub perform {
 		_show_manual_instructions();
 	}
 
-	info("");
-	info("For details about the deployment, run:");
-	info("  #G{genesis info $ENV{GENESIS_ENVIRONMENT}}");
-	info("");
+	# Check if this is the first deployment and auto-initialize if needed
+	_auto_init_if_needed($self);
+
+	# Setup doomsday approle if vault is initialized and unsealed
+	_setup_doomsday_approle($self);
+
+	info(
+		"\nFor details about the deployment, run:\n".
+		"  #G{genesis info $ENV{GENESIS_ENVIRONMENT}}\n"
+	);
 
 	# Check if KV versioning needs to be enabled
 	_check_kv_versioning($self);
@@ -110,14 +117,13 @@ sub perform {
 }
 
 sub _show_manual_instructions {
-	info("");
-	info("Unable to automatically unseal the vault.");
-	info("");
-	info("If this is a #Y{new deployment}, you need to initialize it first:");
-	info("  #G{genesis do $ENV{GENESIS_ENVIRONMENT} -- init}");
-	info("");
-	info("If this is an #Y{existing deployment}, you need to unseal it manually:");
-	info("  #G{genesis do $ENV{GENESIS_ENVIRONMENT} -- unseal}");
+	info(
+		"\nUnable to automatically unseal the vault.".
+		"\nIf this is a #Y{new deployment}, you need to initialize it first:\n".
+		"  #G{genesis do $ENV{GENESIS_ENVIRONMENT} -- init}".
+		"\nIf this is an #Y{existing deployment}, you need to unseal it manually:\n".
+		"  #G{genesis do $ENV{GENESIS_ENVIRONMENT} -- unseal}\n"
+	)
 }
 
 sub _check_kv_versioning {
@@ -149,6 +155,289 @@ sub _check_kv_versioning {
 		info("#Y{NOTE:} Once versioning is enabled, it cannot be disabled");
 		info("      without recreating the secrets backend.");
 		info("");
+	}
+}
+
+sub _setup_doomsday_approle {
+	my ($self) = @_;
+
+	# Check if vault is initialized and unsealed
+	my ($status_out, $status_rc) = run({ stderr => 0 },
+		'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'vault', 'status'
+	);
+
+	# Parse status to check if initialized and unsealed
+	return unless $status_rc == 0;
+	return if $status_out =~ /Initialized\s+false/;
+	return if $status_out =~ /Sealed\s+true/;
+
+	# Check if we can authenticate (need to be authenticated to create approles)
+	my ($auth_check, $auth_rc) = run({ stderr => 0 },
+		'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'auth', 'status'
+	);
+
+	unless ($auth_rc == 0) {
+		info("Skipping doomsday approle setup - not authenticated with vault");
+		return;
+	}
+
+	info("");
+	info("Setting up doomsday monitoring approle...");
+
+	# Enable approle auth if not already enabled
+	my ($enable_out, $enable_rc) = run({ stderr => 0 },
+		'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'vault', 'auth', 'enable', 'approle', '2>&1', '||', 'true'
+	);
+
+	if ($enable_out =~ /Success\! Enabled approle auth method/ || $enable_out =~ /path is already in use/) {
+		info("#G{[ok]} AppRole auth enabled");
+	} else {
+		info("#Y{WARNING:} Could not enable approle auth: $enable_out");
+		return;
+	}
+
+	# Check if doomsday approle already exists
+	my ($list_out, $list_rc) = run({ stderr => 0 },
+		'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'vault', 'list', '-format=json', 'auth/approle/role'
+	);
+
+	if ($list_rc == 0 && $list_out) {
+		eval {
+			require JSON::PP;
+			my $roles = JSON::PP::decode_json($list_out);
+			if (ref($roles) eq 'ARRAY' && grep { $_ eq 'doomsday' } @$roles) {
+				my ($exodus_id, $id_rc) = run({ stderr => 0 },
+					'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'get', $ENV{GENESIS_EXODUS_MOUNT} . ':doomsday_approle_id'
+				);
+				my ($exodus_secret, $secret_rc) = run({ stderr => 0 },
+					'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'get', $ENV{GENESIS_EXODUS_MOUNT} . ':doomsday_approle_secret'
+				);
+
+				if ($id_rc == 0 && $secret_rc == 0 && $exodus_id && $exodus_secret) {
+					info("#G{[ok]} Doomsday approle already exists with credentials in exodus");
+					return;
+				}
+			}
+		};
+	}
+
+	# Create doomsday read-only policy
+	info("Creating doomsday read-only policy...");
+
+	my $policy = <<'EOF';
+# Read-only access for doomsday monitoring
+path "sys/health" {
+	capabilities = ["read"]
+}
+
+path "sys/seal-status" {
+	capabilities = ["read"]
+}
+
+path "sys/host-info" {
+	capabilities = ["read"]
+}
+
+path "sys/mounts" {
+	capabilities = ["read", "list"]
+}
+
+path "sys/auth" {
+	capabilities = ["read", "list"]
+}
+
+# Allow listing all paths to discover what's available
+path "*" {
+	capabilities = ["list"]
+}
+
+# Read-only access to all secrets
+path "secret/*" {
+	capabilities = ["read", "list"]
+}
+
+path "secret/data/*" {
+	capabilities = ["read", "list"]
+}
+
+path "secret/metadata/*" {
+	capabilities = ["read", "list"]
+}
+EOF
+
+	my ($policy_rc) = run({ stdin => $policy, stderr => 1 },
+		'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'vault', 'policy', 'write', 'doomsday', '-'
+	);
+
+	unless ($policy_rc == 0) {
+		info("#R{ERROR:} Failed to create doomsday policy");
+		return;
+	}
+	info("#G{[ok]} Doomsday policy created");
+
+	# Create doomsday approle
+	info("Creating doomsday approle...");
+
+	my ($create_rc) = run({ stderr => 1 },
+		'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'set',
+		'auth/approle/role/doomsday',
+		'secret_id_ttl=0',
+		'token_num_uses=0',
+		'token_ttl=1h',
+		'token_max_ttl=24h',
+		'secret_id_num_uses=0',
+		'policies=doomsday'
+	);
+
+	unless ($create_rc == 0) {
+		info("#R{ERROR:} Failed to create doomsday approle");
+		return;
+	}
+
+	# Get role ID
+	my ($role_id, $role_rc) = run({ stderr => 0 },
+		'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'get', 'auth/approle/role/doomsday/role-id:role_id'
+	);
+
+	unless ($role_rc == 0 && $role_id) {
+		info("#R{ERROR:} Failed to get doomsday role ID");
+		return;
+	}
+
+	# Generate secret ID
+	my ($secret_id, $secret_rc) = run({ stderr => 0 },
+		'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'vault', 'write', '-field=secret_id', '-f',
+		'auth/approle/role/doomsday/secret-id'
+	);
+
+	unless ($secret_rc == 0 && $secret_id) {
+		info("#R{ERROR:} Failed to generate doomsday secret ID");
+		return;
+	}
+
+	# Store in exodus
+	info("Storing doomsday approle credentials in exodus...");
+
+	chomp($role_id);
+	chomp($secret_id);
+
+	my ($store_rc) = run({ stderr => 1 },
+		'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'set',
+		$ENV{GENESIS_EXODUS_MOUNT},
+		"doomsday_approle_id=$role_id",
+		"doomsday_approle_secret=$secret_id"
+	);
+
+	if ($store_rc == 0) {
+		info("#G{✓ Doomsday approle created successfully!}");
+		info("  Credentials stored in exodus at: $ENV{GENESIS_EXODUS_MOUNT}");
+		info("  - doomsday_approle_id");
+		info("  - doomsday_approle_secret");
+	} else {
+		info("#R{ERROR:} Failed to store doomsday credentials in exodus");
+	}
+}
+
+sub _auto_init_if_needed {
+	my ($self) = @_;
+
+	# Check if vault is initialized
+	my ($status_out, $status_rc) = run({ stderr => 0 },
+		'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'vault', 'status'
+	);
+
+	# If we can't get status, try to find a reachable vault node
+	if ($status_rc != 0) {
+		# Get VMs to find vault IPs
+		my ($out, $rc) = run({ stderr => 0 },
+			'bosh', '-e', $self->env->bosh->alias, '-d', $self->env->bosh->deployment,
+			'vms', '--json'
+		);
+
+		if ($rc == 0 && $out) {
+			eval {
+				require JSON::PP;
+				my $data = JSON::PP::decode_json($out);
+				my @ips = map {$_->{ips}} @{$data->{Tables}[0]{Rows}};
+
+				# Try to target a vault node
+				foreach my $ip (@ips) {
+					my ($target_out, $target_rc) = run({ stderr => 0 },
+						'safe', 'target', "https://$ip", '-k', $ENV{GENESIS_ENVIRONMENT}
+					);
+
+					if ($target_rc == 0) {
+						# Try status again
+						($status_out, $status_rc) = run({ stderr => 0 },
+							'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'vault', 'status'
+						);
+						last if $status_rc == 0;
+					}
+				}
+			};
+		}
+	}
+
+	# Parse status to check if initialized
+	if ($status_rc == 0 && $status_out =~ /Initialized\s+false/) {
+		info("");
+		info("Detected #Y{uninitialized Vault} - running automatic initialization...");
+
+		# Run the init addon using the Hook system
+		require Genesis::Hook::Addon::Vault::Init;
+		my $init_hook = Genesis::Hook::Addon::Vault::Init->init(
+			kit => $self->{kit},
+			env => $self->{env},
+			command => 'init',
+			args => []
+		);
+
+		my $init_rc = $init_hook->perform();
+
+		if ($init_rc) {
+			info("#G{✓ Vault initialized successfully!}");
+
+			# The init addon stores seal keys, so we should be able to unseal now
+			# Check if we have seal keys stored
+			my ($check_out, $check_rc) = run({ stderr => 0 },
+				'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'exists', 'secret/vault/seal/keys'
+			);
+
+			if ($check_rc == 0) {
+				info("");
+				info("Attempting to unseal the newly initialized vault...");
+
+				# Get seal keys and unseal
+				my @keys;
+				for (my $i = 1; $i <= 5; $i++) {
+					my ($key_out, $key_rc) = run({ stderr => 0 },
+						'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'get', "secret/vault/seal/keys:key$i"
+					);
+					if ($key_rc == 0 && $key_out) {
+						chomp($key_out);
+						push @keys, $key_out;
+					}
+				}
+
+				if (@keys) {
+					my $keys_content = join("\n", @keys);
+					my ($unseal_out, $unseal_rc) = run(
+						{ stdin => $keys_content, stderr => 1 },
+						'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'unseal'
+					);
+
+					if ($unseal_rc == 0) {
+						info("#G{✓ Vault unsealed successfully!}");
+					} else {
+						info("#Y{WARNING:} Failed to unseal vault automatically");
+						info("You can unseal manually with: #G{genesis do $ENV{GENESIS_ENVIRONMENT} -- unseal}");
+					}
+				}
+			}
+		} else {
+			info("#R{ERROR:} Automatic initialization failed");
+			info("You can initialize manually with: #G{genesis do $ENV{GENESIS_ENVIRONMENT} -- init}");
+		}
 	}
 }
 # }}}

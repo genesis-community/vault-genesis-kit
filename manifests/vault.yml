@@ -6,6 +6,10 @@ meta:
 exodus:
   ips: (( grab instance_groups.vault.networks[0].static_ips ))
   domain: (( grab meta.domain ))
+  # vvv doomsday-integration vvv
+  url: (( concat "https://" instance_groups.vault.networks[0].static_ips ))
+  ca: (( vault meta.vault "/certs/ca:certificate" ))
+  #namespace: (( )) # Not currently used
 
 instance_groups:
 - name: vault
