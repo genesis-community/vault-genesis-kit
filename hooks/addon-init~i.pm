@@ -70,12 +70,19 @@ sub perform {
 				if ($self->_store_seal_keys($init_out, $env->name)) {
 					info("#G{Vault initialized successfully!}");
 					info("Seal keys have been stored in the Vault for automatic unsealing.");
-					return $self->done(1);
 				} else {
 					info("#Y{WARNING:} Vault initialized but seal keys could not be stored.");
 					info("You will need to manually unseal the vault after redeployments.");
-					return $self->done(1);
 				}
+				
+				# Always print the initialization output for backup
+				info("");
+				info("#C{IMPORTANT: Save these credentials securely!}");
+				info("#C{" . "="x60 . "}");
+				print $init_out . "\n";
+				info("#C{" . "="x60 . "}");
+				
+				return $self->done(1);
 			} else {
 				info("#R{Failed to initialize Vault:} $init_out");
 				return $self->done(0);
@@ -129,6 +136,28 @@ sub _store_seal_keys {
 
 	info("Found " . scalar(@seal_keys) . " seal keys to store");
 
+	# Check if vault is sealed and unseal if necessary
+	my ($status_out, $status_rc) = run(
+		{ stderr => 0 },
+		'safe', '-T', $target_name, 'status'
+	);
+	
+	if ($status_out =~ /sealed:\s*true/i) {
+		info("Vault is sealed, unsealing to enable storage...");
+		
+		# Unseal with minimum required keys (usually 3 out of 5)
+		my $keys_to_use = (@seal_keys >= 3) ? 3 : scalar(@seal_keys);
+		for (my $i = 0; $i < $keys_to_use; $i++) {
+			my ($unseal_out, $unseal_rc) = run(
+				{ stderr => 0 },
+				"echo '$seal_keys[$i]' | safe -T $target_name unseal"
+			);
+			if ($unseal_rc != 0) {
+				info("#R{ERROR:} Failed to unseal with key " . ($i + 1));
+			}
+		}
+	}
+
 	# Authenticate with the root token to store the keys
 	if ($root_token) {
 		my ($auth_out, $auth_rc) = run(
@@ -151,7 +180,7 @@ sub _store_seal_keys {
 		my $key_path = "secret/vault/seal/keys:key$key_num";
 
 		my ($store_out, $store_rc) = run(
-			{ stderr => 0 },
+			{ stderr => 1 },
 			'safe', '-T', $target_name, 'set', $key_path, "value=$seal_keys[$i]"
 		);
 
