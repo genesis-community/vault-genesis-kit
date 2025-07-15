@@ -132,8 +132,8 @@ sub _store_seal_keys {
 	# Authenticate with the root token to store the keys
 	if ($root_token) {
 		my ($auth_out, $auth_rc) = run(
-			{ stdin => $root_token, stderr => 0 },
-			'safe', '-T', $target_name, 'auth', 'token'
+			{ stderr => 0 },
+			"echo '$root_token' | safe -T $target_name auth token"
 		);
 
 		if ($auth_rc != 0) {
