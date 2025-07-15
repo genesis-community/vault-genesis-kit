@@ -30,7 +30,7 @@ sub perform {
 
 	# Try to find a Vault node to initialize
 	my ($out, $rc) = read_json_from($self->env->bosh->execute('vms','--json'));
-	bail("Failed to get VM information from BOSH") unless $rc;
+	bail("Failed to get VM information from BOSH") unless $out;
 
 	my @ips = map {$_->{ips}} $out->{Tables}[0]{Rows}->@*;  # TODO handle possible VIPs
 	bail("No Vault VMs found in deployment") unless @ips;
@@ -101,13 +101,13 @@ sub _store_seal_keys {
 	my $root_token;
 
 	foreach my $line (split /\n/, $init_output) {
-		# Match seal key pattern: "Unseal Key N: <key>"
-		if ($line =~ /^Unseal Key \d+:\s*(.+)$/i) {
+		# Match seal key pattern: "Unseal Key #N: <key>"
+		if ($line =~ /^Unseal Key #\d+:\s*(.+)$/i) {
 			my $key = $1;
 			$key =~ s/^\s+|\s+$//g; # trim whitespace
 
-			# Validate key format (should be base64-ish)
-			if ($key =~ /^[A-Za-z0-9+\/=]+$/) {
+			# Validate key format (should be hex)
+			if ($key =~ /^[A-Fa-f0-9]+$/) {
 				push @seal_keys, $key;
 			} else {
 				info("#Y{WARNING:} Invalid seal key format detected, skipping: $key");
