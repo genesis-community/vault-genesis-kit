@@ -62,14 +62,35 @@ sub perform {
 
 			if ( $init_rc == 0 ) {
 
-				# Parse and store seal keys
-				if ( $self->_store_seal_keys( $init_out, $env->name ) ) {
-					info("#G{Vault initialized successfully!}");
-					info("Seal keys have been stored in the Vault for automatic unsealing.");
+				# Check if safe init already stored the keys
+				my $safe_stored_keys = 0;
+				if ( $init_out =~ /safe has written the unseal keys at ([^\s]+)/ ) {
+					my $stored_path = $1;
+					info("#G{Note:} safe has already stored seal keys at $stored_path");
+					
+					# Verify they're accessible
+					my ( $check_out, $check_rc ) = run( { stderr => 0 }, 'safe', '-T', $env->name, 'get', $stored_path );
+					if ( $check_rc == 0 ) {
+						$safe_stored_keys = 1;
+						info("#G{Verified:} Seal keys are accessible in Vault");
+					}
+				}
+
+				# Only try to store seal keys if safe didn't already do it
+				if ( !$safe_stored_keys ) {
+					# Parse and store seal keys
+					if ( $self->_store_seal_keys( $init_out, $env->name ) ) {
+						info("#G{Vault initialized successfully!}");
+						info("Seal keys have been stored in the Vault for automatic unsealing.");
+					}
+					else {
+						info("#Y{WARNING:} Vault initialized but seal keys could not be stored.");
+						info("You will need to manually unseal the vault after redeployments.");
+					}
 				}
 				else {
-					info("#Y{WARNING:} Vault initialized but seal keys could not be stored.");
-					info("You will need to manually unseal the vault after redeployments.");
+					info("#G{Vault initialized successfully!}");
+					info("Seal keys have been automatically stored by safe for automatic unsealing.");
 				}
 
 				# Always print the initialization output for backup
@@ -112,8 +133,8 @@ sub _store_seal_keys {
 			my $key = $1;
 			$key =~ s/^\s+|\s+$//g;    # trim whitespace
 
-			# Validate key format (should be base64 or hex)
-			if ( $key =~ /^[A-Za-z0-9+\/=]+$/ ) {
+			# Validate key format (should be base64 or hex - allowing longer hex keys)
+			if ( $key =~ /^[A-Fa-f0-9]+$/ || $key =~ /^[A-Za-z0-9+\/=]+$/ ) {
 				push @seal_keys, $key;
 			}
 			else {
@@ -218,15 +239,54 @@ sub _store_seal_keys {
 		my ( $store_out, $store_rc ) = run( { stderr => 1 },
 			'safe', '-T', $target_name, 'set', $key_path, "value=$seal_keys[$i]" );
 
-		if ( $store_rc == 0 || $store_out =~ /^(wrote|updated|created)/i ) {
+		# Check if the command succeeded (rc 0) or if we can verify the key was stored
+		my $success = 0;
+		
+		# Debug output
+		if ($ENV{DEBUG}) {
+			info("  Debug: store_rc=$store_rc");
+			info("  Debug: store_out='$store_out'");
+		}
+		
+		if ( $store_rc == 0 ) {
+			$success = 1;
+		}
+		elsif ( !$store_out || $store_out eq '' ) {
+			# Empty output might indicate success for some versions of safe
+			# Try to verify if the key was actually stored
+			my ( $verify_out, $verify_rc ) = run( { stderr => 0 }, 'safe', '-T', $target_name, 'get', "${key_path}:value" );
+			if ( $verify_rc == 0 && $verify_out ) {
+				# Trim whitespace for comparison
+				$verify_out =~ s/^\s+|\s+$//g;
+				if ( $verify_out eq $seal_keys[$i] ) {
+					$success = 1;
+				}
+			}
+		}
+		elsif ( $store_out =~ /(wrote|updated|created|success|stored)/i ) {
+			$success = 1;
+		}
+		
+		if ( $success ) {
 			$stored_count++;
 			info("  #G{✓} Stored seal key $key_num");
 		}
 		else {
 			push @failed_keys, $key_num;
-			my $err_msg = $store_out || "Unknown error";
+			my $err_msg = $store_out || "No output from safe set command";
 			$err_msg =~ s/\n/ /g;
 			info("  #R{✗} Failed to store seal key $key_num: $err_msg");
+			
+			# Always try to verify if key was stored despite error
+			my ( $verify_out, $verify_rc ) = run( { stderr => 0 }, 'safe', '-T', $target_name, 'get', "${key_path}:value" );
+			if ( $verify_rc == 0 && $verify_out ) {
+				$verify_out =~ s/^\s+|\s+$//g;
+				if ( $verify_out eq $seal_keys[$i] ) {
+					info("  #Y{Note:} Key $key_num appears to be stored despite error message");
+					$stored_count++;
+					pop @failed_keys;  # Remove from failed list
+				}
+			}
 		}
 	}
 
