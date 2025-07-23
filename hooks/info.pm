@@ -8,7 +8,7 @@ BEGIN {push @INC, $ENV{GENESIS_LIB} ? $ENV{GENESIS_LIB} : $ENV{HOME}.'/.genesis/
 
 use parent qw(Genesis::Hook);
 
-use Genesis qw/bail info run/;
+use Genesis qw/bail info run read_json_from/;
 use JSON::PP;
 
 # init - Initialize the hook {{{
