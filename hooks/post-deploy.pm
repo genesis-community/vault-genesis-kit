@@ -61,14 +61,22 @@ sub perform {
 
 				info("Using $key_count seal keys for unsealing...");
 
-				# Unseal the vault using the keys
+				# Unseal the vault via an actual shell redirection
+				my $file = $ENV{GENESIS_PREDEPLOY_DATAFILE};
+				unless (-s $file) {
+				bail("Seal‐key file $file is missing or empty");
+				}
+
+				info("Unsealing Vault via shell redirection from $file…");
+				my $cmd = qq{safe -T $ENV{GENESIS_ENVIRONMENT} unseal < $file};
+
 				my ($unseal_out, $unseal_rc) = run(
-					{ stdin => $keys_content, stderr => 1 },
-					'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'unseal'
+				{ stderr => 1 },           # capture stderr
+				'/bin/sh', '-c', $cmd      # invoke a real shell
 				);
 
 				if ($unseal_rc == 0) {
-					info("#G{✓ Vault unsealed successfully!}");
+					info("#G{ Vault unsealed successfully!}");
 
 					# Display vault status
 					info("");

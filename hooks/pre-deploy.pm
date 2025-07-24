@@ -53,7 +53,7 @@ sub perform {
 
 				# Check if vault is initialized
 				my ($init_check, $init_rc) = run({ stderr => 0 },
-					'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'exists', 'secret/vault/seal/initialized'
+					'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'exists', 'secret/vault/seal/keys'
 				);
 
 				if ($init_rc != 0) {
@@ -83,20 +83,23 @@ sub perform {
 					if ($read_rc == 0 && $key_data) {
 						# Extract just the value from the output
 						# safe get outputs in format: key:value
+						my $key_value;
 						if ($key_data =~ /^[^:]+:(.+)$/m) {
-							my $key_value = $1;
-							$key_value =~ s/^\s+|\s+$//g; # trim whitespace
+							$key_value = $1; # YAML style
+						} else {
+							($key_value) = $key_data =~ /(.+)/; # raw single-line
+						}
+						$key_value =~ s/^\s+|\s+$//g;	# trim
 
-							# Validate key format
-							if ($key_value =~ /^[A-Za-z0-9+\/=]+$/) {
+						if ($key_value =~ /^[A-Za-z0-9+\/=]+$/) {
 								push @keys, $key_value;
-								info("  #G{✓} Retrieved seal key $i");
+								info("  #G{Ok} Retrieved seal key $i");
 							} else {
-								info("  #Y{⚠} Skipping invalid seal key $i");
+								info("  #Y{!} Skipping invalid seal key $i");
 								$errors++;
 							}
 						}
-					} else {
+					 else {
 						info("  #R{✗} Failed to read seal key $i");
 						$errors++;
 					}
