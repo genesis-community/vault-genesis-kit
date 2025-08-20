@@ -8,7 +8,8 @@ BEGIN {push @INC, $ENV{GENESIS_LIB} ? $ENV{GENESIS_LIB} : $ENV{HOME}.'/.genesis/
 
 use parent qw(Genesis::Hook::PostDeploy);
 
-use Genesis qw/info run/;
+use Genesis qw/info run slurp/;
+use Service::Vault;
 use JSON::PP;
 
 # init - Initialize the hook {{{
@@ -34,77 +35,21 @@ sub perform {
 	info("#M{$ENV{GENESIS_ENVIRONMENT}} Vault deployed successfully!");
 	info("");
 
-	# Check if this is an auxiliary vault
-	if ($self->env->lookup('params.auxiliary_vault', '') eq "true") {
-		info("This is an auxiliary vault deployment - skipping automatic unseal");
-		info("");
-		info("To unseal this vault, run:");
-		info("  #G{genesis do $ENV{GENESIS_ENVIRONMENT} -- unseal}");
-		return $self->done(1);
-	}
-
 	# Check if we have pre-deploy data for automatic unsealing
 	if (-s $ENV{GENESIS_PREDEPLOY_DATAFILE}) {
 		info("Found seal keys from pre-deploy, attempting automatic unseal...");
-
-		# Read the seal keys from the datafile
-		my $keys_content;
-		if (open my $fh, '<', $ENV{GENESIS_PREDEPLOY_DATAFILE}) {
-			local $/;
-			$keys_content = <$fh>;
-			close $fh;
-
-			# Validate we have content
-			if ($keys_content && $keys_content =~ /\S/) {
-				my @keys = split(/\n/, $keys_content);
-				my $key_count = grep { /\S/ } @keys;
-
-				info("Using $key_count seal keys for unsealing...");
-
-				# Unseal the vault via an actual shell redirection
-				my $file = $ENV{GENESIS_PREDEPLOY_DATAFILE};
-				unless (-s $file) {
-				bail("Seal‐key file $file is missing or empty");
-				}
-
-				info("Unsealing Vault via shell redirection from $file…");
-				my $cmd = qq{safe -T $ENV{GENESIS_ENVIRONMENT} unseal < $file};
-
-				my ($unseal_out, $unseal_rc) = run(
-				{ stderr => 1 },           # capture stderr
-				'/bin/sh', '-c', $cmd      # invoke a real shell
-				);
-
-				if ($unseal_rc == 0) {
-					info("#G{ Vault unsealed successfully!}");
-
-					# Display vault status
-					info("");
-					info("Vault status:");
-					run({ interactive => 1 },
-						'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'status'
-					);
-				} else {
-					info("#R{✗ Failed to unseal vault automatically}");
-					info("Error output: $unseal_out") if $unseal_out;
-					info("");
-					info("You can try to unseal manually with:");
-					info("  #G{genesis do $ENV{GENESIS_ENVIRONMENT} -- unseal}");
-				}
-			} else {
-				info("#Y{WARNING:} Seal key file is empty");
-				_show_manual_instructions();
-			}
+		my $ok = run({interactive => 1, passfail => 1},
+			"safe -T $ENV{GENESIS_ENVIRONMENT} unseal < $ENV{GENESIS_PREDEPLOY_DATAFILE}"
+		);
+		if (!$ok) {
+			info("#R{✗ Failed to unseal vault automatically}");
+			info("");
+			info("You can try to unseal manually with:");
+			info("  #G{genesis do $ENV{GENESIS_ENVIRONMENT} -- unseal}");
+			return $self->done(1);
 		} else {
-			info("#R{ERROR:} Could not read seal keys from $ENV{GENESIS_PREDEPLOY_DATAFILE}: $!");
-			_show_manual_instructions();
+			info("  #G{#@{+} Vault unsealed successfully!}");
 		}
-
-		# Clean up the datafile
-		unlink $ENV{GENESIS_PREDEPLOY_DATAFILE} if -e $ENV{GENESIS_PREDEPLOY_DATAFILE};
-	} else {
-		info("No seal keys found from pre-deploy phase");
-		_show_manual_instructions();
 	}
 
 	# Check if this is the first deployment and auto-initialize if needed
@@ -337,7 +282,7 @@ EOF
 	);
 
 	if ($store_rc == 0) {
-		info("#G{✓ Doomsday approle created successfully!}");
+		info("#G{#@{+} Doomsday approle created successfully!}");
 		info("  Credentials stored in exodus at: $ENV{GENESIS_EXODUS_MOUNT}");
 		info("  - doomsday_approle_id");
 		info("  - doomsday_approle_secret");
@@ -403,7 +348,7 @@ sub _auto_init_if_needed {
 		my $init_rc = $init_hook->perform();
 
 		if ($init_rc) {
-			info("#G{✓ Vault initialized successfully!}");
+			info("#G{#@{+} Vault initialized successfully!}");
 
 			# The init addon stores seal keys, so we should be able to unseal now
 			# Check if we have seal keys stored
@@ -435,7 +380,7 @@ sub _auto_init_if_needed {
 					);
 
 					if ($unseal_rc == 0) {
-						info("#G{✓ Vault unsealed successfully!}");
+						info("#G{#@{+} Vault unsealed successfully!}");
 					} else {
 						info("#Y{WARNING:} Failed to unseal vault automatically");
 						info("You can unseal manually with: #G{genesis do $ENV{GENESIS_ENVIRONMENT} -- unseal}");
