@@ -32,7 +32,7 @@ sub perform {
 	my $vault_seal_path = (grep {$_ =~ m{/vault/seal/keys$}} $vault->paths())[0];
 	if (!$vault_seal_path) {
 		info(
-			'[[  - >>#Yr{[#@{!} warning]}: Vault seal keys path not found - '.
+			'[[  - #Yr{#@{!} warning} >>Vault seal keys path not found - '.
 			'automatic unseal will not be available'
 		);
 		return $self->done(1);
@@ -41,7 +41,7 @@ sub perform {
 	my $keys = [values %{$vault->get($vault_seal_path)}];
 	if (!@$keys) {
 		info(
-			'[[  - >>#Yr{[#@{!} warning]}: No vault unseal keys found at '.
+			'[[  - #Yr{#@{!} warning} >>no vault unseal keys found at '.
 			'[#C{%s}:key[1-N]] - '.
 			'automatic unseal will not be available',
 			$vault_seal_path
@@ -50,7 +50,7 @@ sub perform {
 	}
 
 	info(
-		'[[  - >>#g{[#@{+} success]}: Found %d vault unseal keys at '.
+		'[[  - >>found %d vault unseal keys at '.
 		'[#C{%s}:key[1-N]] - '.
 		'automatic unseal will be available after deployment',
 		scalar(@$keys), $vault_seal_path

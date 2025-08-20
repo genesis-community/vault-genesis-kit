@@ -36,27 +36,35 @@ sub perform {
 	info("");
 
 	# Check if we have pre-deploy data for automatic unsealing
-	if (-s $ENV{GENESIS_PREDEPLOY_DATAFILE}) {
-		info("Found seal keys from pre-deploy, attempting automatic unseal...");
-		my $ok = run({interactive => 1, passfail => 1},
-			"safe -T $ENV{GENESIS_ENVIRONMENT} unseal < $ENV{GENESIS_PREDEPLOY_DATAFILE}"
-		);
-		if (!$ok) {
-			info("#R{✗ Failed to unseal vault automatically}");
-			info("");
-			info("You can try to unseal manually with:");
-			info("  #G{genesis do $ENV{GENESIS_ENVIRONMENT} -- unseal}");
-			return $self->done(1);
+	my $lines = lines(run("safe -T $ENV{GENESIS_ENVIRONMENT} status 2>/dev/null | grep 'is sealed'"));
+	if ($lines) {
+		info("Vault is currently #Y{sealed} - unsealing is required to access secrets");
+		if (-s $ENV{GENESIS_PREDEPLOY_DATAFILE}) {
+			info("Found unseal keys from pre-deploy, attempting automatic unseal...");
+			my $ok = run({interactive => 1, passfail => 1},
+				"safe -T $ENV{GENESIS_ENVIRONMENT} unseal < $ENV{GENESIS_PREDEPLOY_DATAFILE}"
+			);
+			if (!$ok) {
+				info(
+					"  #R{\@{x} Failed to unseal vault automatically}\n\n".
+					"You can try to unseal manually with:\n".
+					"  #G{genesis do $ENV{GENESIS_ENVIRONMENT} -- unseal}");
+			} else {
+				info("  #g{#\@{+} Vault unsealed successfully!}");
+			}
 		} else {
-			info("  #G{#@{+} Vault unsealed successfully!}");
+			info("No pre-deploy seal keys found - cannot unseal automatically");
+			$self->_show_manual_instructions;
 		}
+	} else {
+		info("Vault is currently #G{unsealed} - no further action is needed");
 	}
 
 	# Check if this is the first deployment and auto-initialize if needed
-	_auto_init_if_needed($self);
+	$self->_auto_init_if_needed();
 
 	# Setup doomsday approle if vault is initialized and unsealed
-	_setup_doomsday_approle($self);
+	$self->_setup_doomsday_approle();
 
 	info(
 		"\nFor details about the deployment, run:\n".
@@ -64,7 +72,7 @@ sub perform {
 	);
 
 	# Check if KV versioning needs to be enabled
-	_check_kv_versioning($self);
+	$self->_check_kv_versioning();
 
 	return $self->done(1);
 }
@@ -94,20 +102,16 @@ sub _check_kv_versioning {
 	);
 
 	if ($rc == 0 && $out =~ /^secret\/.*map\[version:1\]/m) {
-		info("---");
-		info("");
-		info("#Y{KV Version 2 Available}");
-		info("");
-		info("This Vault supports versioned secrets, but the 'secret/' mount");
-		info("is still using version 1. To enable versioning, run:");
-		info("");
-		info("  #G{safe vault kv enable-versioning secret}");
-		info("");
-		info("You'll need to be authenticated with the root token.");
-		info("");
-		info("#Y{NOTE:} Once versioning is enabled, it cannot be disabled");
-		info("      without recreating the secrets backend.");
-		info("");
+		info(
+			"---\n\n".
+			"#Y{KV Version 2 Available}\n\n".
+			"This Vault supports versioned secrets, but the 'secret/' mount\n".
+			"is still using version 1. To enable versioning, run:\n\n".
+			"[[  >>#G{safe vault kv enable-versioning secret}\n\n".
+			"You'll need to be authenticated with the root token.\n\n".
+			"[[#Y{NOTE:} >>Once versioning is enabled, it cannot be disabled".
+			"without recreating the secrets backend.\n"
+		);
 	}
 }
 

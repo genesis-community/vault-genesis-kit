@@ -2,4 +2,4 @@ releases:
 - name: safe
   version: 0.3.3
   url: https://github.com/cloudfoundry-community/safe-boshrelease/releases/download/v0.3.3/safe-boshrelease-0.3.3.tgz
-  sha1: a1bb4bb4c08e20dd088b3f93e6b969a948e1b7bb
+  sha1: sha256:12c5928d36c309250f6639ad40fbdf5ff10add2cb55e7b4a6235006b2d039937
