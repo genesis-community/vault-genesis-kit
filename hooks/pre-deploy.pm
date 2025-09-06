@@ -26,7 +26,7 @@ sub perform {
 
 	# We're just grabbing the vault unseal keys for post-deploy unsealing
 	my @matching_vaults = Service::Vault->find_by_target($self->env->name);
-	$self->done() unless @matching_vaults;
+	return $self->done() unless @matching_vaults;
 	my $vault = $matching_vaults[0];
 	$self->env->notify(" #iu{pre-deploy}: Retrieving vault unseal keys for post-deploy unsealing");
 	my $vault_seal_path = (grep {$_ =~ m{/vault/seal/keys$}} $vault->paths())[0];
