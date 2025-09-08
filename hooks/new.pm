@@ -6,7 +6,7 @@ use warnings;
 # Only needed for development
 BEGIN {push @INC, $ENV{GENESIS_LIB} ? $ENV{GENESIS_LIB} : $ENV{HOME}.'/.genesis/lib'}
 
-use parent qw(Genesis::Hook::New);
+use parent qw(Genesis::Hook);
 
 use Genesis qw/bail/;
 use Genesis::UI qw/prompt_for_boolean/;
