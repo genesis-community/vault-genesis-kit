@@ -1,4 +1,4 @@
-package Genesis::Hook::Blueprint::Vault;
+package Genesis::Hook::Blueprint::Vault v2.0.0;
 
 use v5.20;
 use warnings; # Genesis min perl version is 5.20

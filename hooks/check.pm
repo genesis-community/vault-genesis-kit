@@ -1,4 +1,4 @@
-package Genesis::Hook::Check::Vault;
+package Genesis::Hook::Check::Vault v2.0.0;
 
 use v5.20;
 use warnings;

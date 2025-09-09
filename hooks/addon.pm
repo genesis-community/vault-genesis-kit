@@ -1,4 +1,4 @@
-package Genesis::Hook::Addon::Vault;
+package Genesis::Hook::Addon::Vault v2.0.0;
 
 use v5.20;
 use warnings;

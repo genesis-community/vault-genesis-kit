@@ -1,4 +1,4 @@
-package Genesis::Hook::Addon::Vault::Target;
+package Genesis::Hook::Addon::Vault::Target v2.0.0;
 use v5.20;
 use warnings; # Genesis min perl version is 5.20
 use Genesis qw/bail info run read_json_from/;
