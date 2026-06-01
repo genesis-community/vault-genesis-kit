@@ -21,6 +21,7 @@ supports:
 - openstack
 - vsphere
 - stackit
+- pve
 
 required_configs:
   blueprint: []
