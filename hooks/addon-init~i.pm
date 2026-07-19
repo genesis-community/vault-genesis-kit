@@ -79,7 +79,7 @@ sub perform {
 				# Only try to store seal keys if safe didn't already do it
 				if ( !$safe_stored_keys ) {
 					# Parse and store seal keys
-					if ( $self->_store_seal_keys( $init_out, $env->name ) ) {
+					if ( $self->_store_seal_keys( $init_out, $env->name, "https://$ip" ) ) {
 						info("#G{Vault initialized successfully!}");
 						info("Seal keys have been stored in the Vault for automatic unsealing.");
 					}
@@ -91,6 +91,14 @@ sub perform {
 				else {
 					info("#G{Vault initialized successfully!}");
 					info("Seal keys have been automatically stored by safe for automatic unsealing.");
+
+					# safe already stored the primary copy, but the keys have not
+					# gone through _store_seal_keys() in this branch, so back
+					# them up to the deploying vault here too - same custody
+					# guarantee regardless of which path stored the primary copy.
+					my ( $seal_keys, undef ) = $self->_parse_seal_keys($init_out);
+					$self->_backup_seal_keys_to_provider( $seal_keys, "https://$ip" )
+						if $seal_keys && @$seal_keys;
 				}
 
 				# Always print the initialization output for backup
@@ -112,17 +120,19 @@ sub perform {
 	bail("Could not find any reachable Vault nodes to initialize.");
 }
 
-# _store_seal_keys - Parse and store seal keys from safe init output {{{
-sub _store_seal_keys {
-	my ( $self, $init_output, $target_name ) = @_;
+# _parse_seal_keys - Parse seal keys and root token out of safe init output {{{
+# Returns (\@seal_keys, $root_token) on success, or (undef, undef) if no seal
+# keys could be parsed. Shared by _store_seal_keys() and the "safe already
+# stored the keys" branch in perform(), so both paths can back the keys up to
+# the deploying vault via the same code.
+sub _parse_seal_keys {
+	my ( $self, $init_output ) = @_;
 
-	# Validate input
 	unless ($init_output) {
 		info("#R{ERROR:} No output from vault initialization");
-		return 0;
+		return ( undef, undef );
 	}
 
-	# Parse seal keys from the output
 	my @seal_keys;
 	my $root_token;
 
@@ -149,17 +159,30 @@ sub _store_seal_keys {
 		}
 	}
 
-	# Validate we found seal keys
 	unless (@seal_keys) {
 		info("#R{ERROR:} No seal keys found in initialization output");
 		info( "Debug: First 500 chars of output: " . substr( $init_output, 0, 500 ) );
-		return 0;
+		return ( undef, undef );
 	}
 
 	unless ($root_token) {
 		info("#R{ERROR:} No root token found in initialization output");
-		return 0;
+		return ( undef, undef );
 	}
+
+	return ( \@seal_keys, $root_token );
+}
+
+# }}}
+
+# _store_seal_keys - Parse and store seal keys from safe init output {{{
+sub _store_seal_keys {
+	my ( $self, $init_output, $target_name, $target_url ) = @_;
+
+	my ( $seal_keys_ref, $root_token ) = $self->_parse_seal_keys($init_output);
+	return 0 unless $seal_keys_ref;
+
+	my @seal_keys = @$seal_keys_ref;
 
 	info( "Found " . scalar(@seal_keys) . " seal keys to store" );
 
@@ -301,6 +324,7 @@ sub _store_seal_keys {
 	}
 
 	# Verify storage was successful
+	my $result;
 	if ( $stored_count == @seal_keys ) {
 		info("#G{Successfully stored all $stored_count seal keys}");
 
@@ -313,7 +337,7 @@ sub _store_seal_keys {
 			"keys=$stored_count"
 		);
 
-		return 1;
+		$result = 1;
 	}
 	elsif ( $stored_count > 0 ) {
 		info(
@@ -321,12 +345,85 @@ sub _store_seal_keys {
 		info( "#Y{Failed keys:} " . join( ", ", @failed_keys ) ) if @failed_keys;
 
 		# Return success if we stored at least 3 keys (minimum needed to unseal)
-		return ( $stored_count >= 3 ) ? 1 : 0;
+		$result = ( $stored_count >= 3 ) ? 1 : 0;
 	}
 	else {
 		info("#R{ERROR:} Failed to store any seal keys");
+		$result = 0;
+	}
+
+	# Belt-and-suspenders: also back the seal keys up to the deploying
+	# vault, so they remain recoverable even if this freshly-initialized
+	# target vault is later lost or rebuilt before an out-of-band backup
+	# runs. Best-effort only - never fails init (see
+	# _backup_seal_keys_to_provider).
+	$self->_backup_seal_keys_to_provider( \@seal_keys, $target_url ) if $result;
+
+	return $result;
+}
+
+# }}}
+
+# _backup_seal_keys_to_provider - copy seal keys into the deploying vault {{{
+# The primary copy above lives in the freshly-initialized target Vault
+# itself (addressed via the ad-hoc `safe -T $target_name` alias) - that is
+# circular custody: once that target Vault seals (e.g. after a restart before
+# auto-unseal is wired up, or if the VM is rebuilt), the keys needed to
+# unseal it are unreachable. This writes a second copy into the Genesis
+# "deploying" vault for this environment - the same secrets provider Genesis
+# itself targets to store this env's manifest params (available inside a
+# hook via $self->vault, per Genesis::Hook::Addon), under this env's own
+# secrets_base path, mirroring how the rest of this kit paths env secrets.
+#
+# This is a best-effort backup: it must never fail hook init, since the
+# keys are already durably stored in the target vault and printed to the
+# console above.
+sub _backup_seal_keys_to_provider {
+	my ( $self, $seal_keys, $target_url ) = @_;
+
+	return 0 unless $seal_keys && @$seal_keys;
+
+	my $provider;
+	eval { $provider = $self->vault; };
+	if ( $@ || !$provider ) {
+		my $err = $@ || 'no deploying vault is configured for this environment';
+		$err =~ s/\n/ /g;
+		info("#Y{WARNING:} Could not resolve the deploying vault to back up seal keys: $err");
+		info("#Y{WARNING:} Seal keys remain available only in the target vault and the console output above.");
 		return 0;
 	}
+
+	# Guard: if the deploying provider and the freshly-initialized target
+	# vault are the same endpoint (e.g. this hook is re-run post-migration
+	# once the target vault has become the environment's own deploying
+	# vault), a second write would be circular/redundant - skip it.
+	my $provider_url = $provider->url // '';
+	( my $norm_provider_url = lc($provider_url) ) =~ s{/+$}{};
+	( my $norm_target_url   = lc( $target_url // '' ) ) =~ s{/+$}{};
+
+	if ( $norm_provider_url ne '' && $norm_provider_url eq $norm_target_url ) {
+		info("#Y{Note:} Deploying vault and target vault are the same endpoint ($provider_url) - skipping backup seal-key copy.");
+		return 0;
+	}
+
+	my $backup_path = $self->env->secrets_base() . 'vault/seal/keys';
+
+	my %data;
+	for ( my $i = 0 ; $i < @$seal_keys ; $i++ ) {
+		$data{ 'key' . ( $i + 1 ) } = $seal_keys->[$i];
+	}
+
+	eval { $provider->set_path( $backup_path, \%data ); };
+	if ($@) {
+		my $err = $@;
+		$err =~ s/\n/ /g;
+		info("#Y{WARNING:} Failed to back up seal keys to the deploying vault at #M{$provider_url}: $err");
+		info("#Y{WARNING:} Seal keys remain available only in the target vault and the console output above.");
+		return 0;
+	}
+
+	info( "#G{Backed up} " . scalar(@$seal_keys) . " seal key(s) to the deploying vault at #M{$provider_url} (#C{$backup_path})" );
+	return 1;
 }
 
 # }}}
