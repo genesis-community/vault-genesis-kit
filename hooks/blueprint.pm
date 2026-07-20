@@ -76,7 +76,7 @@ exodus:
 
 instance_groups:
 - name: vault
-  azs:${\(join "\n  - ", '','(( replace ))', @valid_azs)}
+  azs:${\(join "\n  - ", '', @valid_azs)}
   instances: $instances
   networks:
   - (( replace ))
