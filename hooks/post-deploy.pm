@@ -222,7 +222,7 @@ path "secret/metadata/*" {
 }
 EOF
 
-	my ($policy_rc) = run({ stdin => $policy, stderr => 1 },
+	my ($policy_rc) = run({ stdin => $policy, stderr => '&1' },
 		'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'vault', 'policy', 'write', 'doomsday', '-'
 	);
 
@@ -235,7 +235,7 @@ EOF
 	# Create doomsday approle
 	info("Creating doomsday approle...");
 
-	my ($create_rc) = run({ stderr => 1 },
+	my ($create_rc) = run({ stderr => '&1' },
 		'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'set',
 		'auth/approle/role/doomsday',
 		'secret_id_ttl=0',
@@ -278,7 +278,7 @@ EOF
 	chomp($role_id);
 	chomp($secret_id);
 
-	my ($store_rc) = run({ stderr => 1 },
+	my ($store_rc) = run({ stderr => '&1' },
 		'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'set',
 		$ENV{GENESIS_EXODUS_MOUNT},
 		"doomsday_approle_id=$role_id",
@@ -379,7 +379,7 @@ sub _auto_init_if_needed {
 				if (@keys) {
 					my $keys_content = join("\n", @keys);
 					my ($unseal_out, $unseal_rc) = run(
-						{ stdin => $keys_content, stderr => 1 },
+						{ stdin => $keys_content, stderr => '&1' },
 						'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'unseal'
 					);
 
