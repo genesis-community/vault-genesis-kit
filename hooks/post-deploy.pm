@@ -101,7 +101,7 @@ sub _check_kv_versioning {
 	return unless $auth_rc == 0;
 
 	my ($out, $rc) = run({ stderr => 0 },
-		'safe', 'vault', 'secrets', 'list', '--detailed'
+		'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'vault', 'secrets', 'list', '--detailed'
 	);
 
 	if ($rc == 0 && $out =~ /^secret\/.*map\[version:1\]/m) {
@@ -145,8 +145,8 @@ sub _setup_doomsday_approle {
 	info("Setting up doomsday monitoring approle...");
 
 	# Enable approle auth if not already enabled
-	my ($enable_out, $enable_rc) = run({ stderr => 0 },
-		'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'vault', 'auth', 'enable', 'approle', '2>&1', '||', 'true'
+	my ($enable_out, $enable_rc) = run(
+		'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'vault', 'auth', 'enable', 'approle'
 	);
 
 	if ($enable_out =~ /Success\! Enabled approle auth method/ || $enable_out =~ /path is already in use/) {
@@ -225,7 +225,7 @@ path "secret/metadata/*" {
 }
 EOF
 
-	my ($policy_rc) = run({ stdin => $policy, stderr => 1 },
+	my (undef, $policy_rc) = run({ stdin => $policy, stderr => 1 },
 		'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'vault', 'policy', 'write', 'doomsday', '-'
 	);
 
@@ -238,7 +238,7 @@ EOF
 	# Create doomsday approle
 	info("Creating doomsday approle...");
 
-	my ($create_rc) = run({ stderr => 1 },
+	my (undef, $create_rc) = run({ stderr => 1 },
 		'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'set',
 		'auth/approle/role/doomsday',
 		'secret_id_ttl=0',
@@ -281,7 +281,7 @@ EOF
 	chomp($role_id);
 	chomp($secret_id);
 
-	my ($store_rc) = run({ stderr => 1 },
+	my (undef, $store_rc) = run({ stderr => 1 },
 		'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'set',
 		$ENV{GENESIS_EXODUS_MOUNT},
 		"doomsday_approle_id=$role_id",
@@ -308,7 +308,7 @@ sub _add_target {
 		'safe', 'target', '--json'
 	);
 	my $current = eval {decode_json($current_out)} || {};
-	my (undef, $rc) = run({stderr => 0}, 'safe', 'target', $url, '-k', $name);
+	my (undef, $rc) = run({stderr => 0}, 'safe', '-k', '--strongbox', 'target', $url, $name);
 	run({stderr => 0}, 'safe', 'target', $current->{name})
 		if $rc == 0 && $current->{name} && $current->{name} ne $name;
 	return $rc;
