@@ -299,11 +299,12 @@ EOF
 	}
 	info("#G{[ok]} Doomsday policy created");
 
-	# Create doomsday approle
+	# Create doomsday approle.  safe set would read the role back and rewrite
+	# every field, and Vault 2 refuses the empty alias_metadata it returns.
 	info("Creating doomsday approle...");
 
-	my (undef, $create_rc) = $vault->({ stderr => 1 },
-		'set',
+	my ($create_out, $create_rc) = $vault->({ stderr => 1 },
+		'vault', 'write',
 		'auth/approle/role/doomsday',
 		'secret_id_ttl=0',
 		'token_num_uses=0',
@@ -314,7 +315,7 @@ EOF
 	);
 
 	unless ($create_rc == 0) {
-		info("#R{ERROR:} Failed to create doomsday approle");
+		info("#R{ERROR:} Failed to create doomsday approle: %s", ($create_out // '') =~ s/\s+/ /gr);
 		return;
 	}
 
