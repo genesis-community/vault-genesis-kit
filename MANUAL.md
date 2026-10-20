@@ -6,7 +6,7 @@ credentials used elsewhere in deployments and applications.
 
 ## Version Compatibility
 
-This kit requires Genesis 3.1.0 or higher. It is currently at version 2.0.0.
+This kit requires Genesis 3.1.0 or higher. It is currently at version 3.0.0.
 
 ## Features
 
@@ -30,6 +30,9 @@ The following features are supported by this kit:
 
 - `azure` - Configures the deployment for Microsoft Azure, including setting
   up availability sets for the Vault nodes.
+
+- `resolute` - Deploys the Vault nodes on the Ubuntu resolute (26.04) stemcell.
+  See [Ubuntu Resolute Stemcells](#ubuntu-resolute-stemcells).
 
 ## Base Parameters
 
@@ -65,7 +68,7 @@ The following features are supported by this kit:
   and `z3`.
 
 - `stemcell_os` - The operating system stemcell you want to deploy
-  on. (default: `ubuntu-bionic`)
+  on. (default: `ubuntu-jammy`, or `ubuntu-resolute` when the `resolute` feature is on)
 
 - `stemcell_version` - The specific version of the stemcell you want
   to deploy on. (default: `latest`)
@@ -133,7 +136,7 @@ To use custom cloud config types:
 ---
 kit:
   name: vault
-  version: 2.0.0
+  version: 3.0.0
 
 genesis:
   env: acme-us-east-1-prod
@@ -150,7 +153,7 @@ To deploy on STACKIT:
 ---
 kit:
   name: vault
-  version: 2.0.0
+  version: 3.0.0
 
 genesis:
   env: stackit-eu-prod
@@ -170,7 +173,7 @@ To deploy using OCFP configurations:
 ---
 kit:
   name: vault
-  version: 2.0.0
+  version: 3.0.0
 
 genesis:
   env: ocfp-us-prod
@@ -181,6 +184,53 @@ features:
 params:
   ocfp-instances: 3
 ```
+
+## Ubuntu Resolute Stemcells
+
+The `resolute` feature deploys the Vault nodes on the `ubuntu-resolute` stemcell, which is Ubuntu 26.04. The feature sets `params.stemcell_os` to `ubuntu-resolute` for you, so leave that parameter out of the environment file. The kit refuses to build the manifest when the feature is on and `params.stemcell_os` names a different operating system. It also refuses to build when `params.stemcell_os` is `ubuntu-resolute` and the feature is off, so the feature is the one place where the choice is made.
+
+Set `params.stemcell_version` to a resolute stemcell your Director holds. The kit was tested with `0.184`. The Director also needs bosh-dns 1.39.31 or later, because earlier bosh-dns releases do not start on resolute.
+
+```
+---
+kit:
+  name: vault
+  version: 3.0.0
+  features:
+    - resolute
+
+genesis:
+  env: acme-us-east-1-prod
+
+params:
+  stemcell_version: "0.184"
+```
+
+The resolute stemcell does not ship runit, so the safe release starts its processes with `setpriv` from util-linux in place of `chpst`. The kit pins a safe release that does this on every stemcell, not only on resolute.
+
+The safe release that the kit pins is a development build with the version `0.3.2+dev.1` and no download URL. The Director must already hold that release before you deploy, so upload the tarball with `bosh upload-release` first. The kit switches to a final release with a URL and checksum once one is published.
+
+## Vault and Consul Licence Change
+
+This kit now deploys Vault 2.2.0 and Consul 2.0.4. Both are published by HashiCorp under the Business Source License 1.1, which replaced the Mozilla Public License that covered the Vault 1.14 and Consul 1.16 releases this kit used before. The BUSL allows production use, including running Vault for your own organisation, but it restricts offering the software as a competing hosted service. Read the licence before you adopt the kit if you resell or host Vault for others.
+
+## Upgrading from Kit 2.x
+
+Work through these steps in order when you move an existing environment from kit 2.x.
+
+1. Take a Consul snapshot and keep the Vault unseal keys and root token somewhere outside the Vault. A Vault that a 2.x server has unsealed cannot be rolled back to 1.14, so the snapshot is your only way back.
+
+2. Plan the Consul jump. Consul supports upgrading across at most two major versions in one step, and going from 1.16 to 2.0 is further than that. Either deploy through the intermediate kit versions that carry Consul 1.18, 1.20, and 1.22 in turn, or build a new environment on this kit and restore the Consul snapshot into it.
+
+3. Set `kit.version` to 3.0.0 in each environment file and upgrade Genesis to 3.1.0 or later.
+
+4. Deploy one environment at a time. BOSH replaces the nodes one by one, and the Vault will seal itself as it does after every deploy, so unseal it with `genesis <env> do unseal` when the deploy ends.
+
+5. Expect the existing servers to keep their BoltDB raft log. Consul writes new clusters with the WAL log store, but a server that already has a `raft.db` file keeps using BoltDB and is not migrated automatically. That is safe, and a rebuilt node picks up WAL.
+
+The kit now renders the `storage "consul"` stanza in place of the older `backend` stanza, takes the Consul TLS settings from `tls.defaults`, and no longer sets `start_join`, so the configuration files carry no deprecation warnings. You do not need to change any environment parameters for these.
+
+Vault 2.x also tightens a few behaviours that matter to the clients of your Vault. It rejects request paths that are not cleaned, it limits RSA keys to a modulus of 8192 bits, and it requires a token to rekey or generate a root token. Check scripts that call the Vault API directly before you upgrade.
 
 ## Caveats
 
@@ -195,6 +245,8 @@ will protectively seal itself.  An operator **must** intervene to
 unseal it, or it will remain inaccessible.
 
 ## History
+
+Version 3.0.0 adds the `resolute` feature for the Ubuntu 26.04 stemcell, moves to Vault 2.2.0 and Consul 2.0.4, and pins a safe release that starts its processes with `setpriv` in place of `chpst`.
 
 Version 2.0.0 adds support for additional cloud providers (STACKIT, OCFP) and
 updates to the newer stemcell versions.

@@ -24,33 +24,29 @@ sub perform {
   my ($self) = @_;
   my $ok = 1;
 
-  # Cloud Config checks
-  if ($ENV{GENESIS_CLOUD_CONFIG}) {
-    unless ($self->has_feature('proto')) {
-      $self->start_check("Checking cloud config");
+  # Cloud Config checks.  An OCFP environment gets a generated cloud config
+  # that the cloud-config hook uploads before the deploy, so there is nothing
+  # to look up in the one the Director holds now.
+  if ($ENV{GENESIS_CLOUD_CONFIG} && !$self->want_feature('ocfp')) {
+    $self->start_check('cloud-config');
 
-      my @errors;
+    if (!$self->env->has_config('cloud')) {
+      $ok = 0 unless $self->check_result('cloud-config', 'failed', 'no cloud config found');
+    } else {
+      $self->has_entry('cloud-config', 'vm_type',
+        $self->env->lookup('params.vault_vm_type', 'default'));
+      $self->has_entry('cloud-config', 'network',
+        $self->env->lookup('params.vault_network', 'vault'));
+      $self->has_entry('cloud-config', 'disk_type',
+        $self->env->lookup('params.vault_disk_type',
+          $self->env->lookup('params.vault_disk_pool', 'default')));
 
-      # Check required cloud config resources
-      push @errors, $self->env->missing_cloud_config_keys(
-        vm_type   => [$self->env->lookup('params.vault_vm_type',   'default')],
-        network   => [$self->env->lookup('params.vault_network',   'vault')],
-        disk_type => [$self->env->lookup('params.vault_disk_type', 'default')]
-      );
-
-      # Azure-specific checks
-      if ($self->env->cpi eq 'azure') {
-        push @errors, $self->env->missing_cloud_config_keys(
-          vm_extension => [$self->env->lookup('params.azure_availability_set', 'vault_as')]
-        );
+      if ($self->iaas eq 'azure') {
+        $self->has_entry('cloud-config', 'vm_extension',
+          $self->env->lookup('params.azure_availability_set', 'vault_as'));
       }
 
-      if (@errors) {
-        $self->check_result(0, join("\n", @errors));
-        $ok = 0;
-      } else {
-        $self->check_result(1);
-      }
+      $ok = 0 unless $self->check_result('cloud-config');
     }
   }
 

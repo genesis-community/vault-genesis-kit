@@ -1,5 +1,7 @@
 ---
 kit:
+  name:    dev
+  version: latest
   features: []
 
 genesis:
@@ -7,3 +9,7 @@ genesis:
 
 params:
   auxiliary_vault: true
+  ips:
+    - 10.99.0.16
+    - 10.99.0.17
+    - 10.99.0.18

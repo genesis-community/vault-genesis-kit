@@ -1,0 +1,26 @@
+---
+kit:
+  name:    dev
+  version: latest
+  features:
+  - resolute
+
+genesis:
+  env: resolute-all-params
+
+params:
+  auxiliary_vault: true
+
+  vault_domain:     test.domain.com
+  vault_network:    test-network
+  vault_vm_type:    test-vm-type
+  vault_disk_pool:  test-disk-type
+  availability_zones:
+    - z1
+  ui:               false
+  stemcell_version: "0.184"
+
+  ips:
+    - 10.1.1.0
+    - 10.1.1.1
+    - 10.1.1.2

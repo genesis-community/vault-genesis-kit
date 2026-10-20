@@ -25,8 +25,8 @@ the following (using Genesis v2+):
 # create a vault-deployments repo using the latest version of the vault kit
 genesis init --kit vault
 
-# create a vault-deployments repo using v2.0.0 of the vault kit
-genesis init --kit vault/2.0.0
+# create a vault-deployments repo using v3.0.0 of the vault kit
+genesis init --kit vault/3.0.0
 
 # create a my-vault-configs repo using the latest version of the vault kit
 genesis init --kit vault -d my-vault-configs

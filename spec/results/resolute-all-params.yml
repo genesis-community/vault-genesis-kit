@@ -1,0 +1,54 @@
+exodus:
+  bosh: resolute-all-params
+  ca: <!{meta.vault}/certs/ca:certificate!>
+  domain: test.domain.com
+  features: resolute
+  iaas: null
+  ips: 10.1.1.0,10.1.1.1,10.1.1.2
+  is_director: false
+  scale: null
+  services: vault
+  url: https://10.1.1.0
+  use_create_env: false
+instance_groups:
+- azs:
+  - z1
+  instances: 3
+  jobs:
+  - name: vault
+    properties:
+      safe:
+        peer:
+          tls:
+            ca: <!{meta.vault}/certs/ca:certificate!>
+            certificate: <!{meta.vault}/certs/consul:certificate!>
+            key: <!{meta.vault}/certs/consul:key!>
+        tls:
+          certificate: <!{meta.vault}/certs/vault:certificate!>
+          key: <!{meta.vault}/certs/vault:key!>
+        ui: false
+    release: safe
+  name: vault
+  networks:
+  - name: test-network
+    static_ips:
+    - 10.1.1.0
+    - 10.1.1.1
+    - 10.1.1.2
+  persistent_disk_type: test-disk-type
+  stemcell: default
+  vm_type: test-vm-type
+name: resolute-all-params-vault
+releases:
+- name: safe
+  version: 0.3.2+dev.1
+stemcells:
+- alias: default
+  os: ubuntu-resolute
+  version: "0.184"
+update:
+  canaries: 1
+  canary_watch_time: 30000-120000
+  max_in_flight: 1
+  serial: true
+  update_watch_time: 30000-120000

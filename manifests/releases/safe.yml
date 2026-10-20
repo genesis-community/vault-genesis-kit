@@ -1,5 +1,7 @@
+---
+# Dev build of the safe release (Vault 2.2.0, Consul 2.0.4, setpriv in place of
+# chpst).  There is no url or sha1 until the final release is cut, so the
+# Director must already hold this version before a deploy.
 releases:
 - name: safe
-  version: 0.3.3
-  url: https://github.com/cloudfoundry-community/safe-boshrelease/releases/download/v0.3.3/safe-boshrelease-0.3.3.tgz
-  sha1: sha256:12c5928d36c309250f6639ad40fbdf5ff10add2cb55e7b4a6235006b2d039937
+  version: 0.3.2+dev.1

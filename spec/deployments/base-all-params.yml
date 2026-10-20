@@ -1,5 +1,7 @@
 ---
 kit:
+  name:    dev
+  version: latest
   features: []
 
 genesis:

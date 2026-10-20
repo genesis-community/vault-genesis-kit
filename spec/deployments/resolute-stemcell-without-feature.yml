@@ -1,0 +1,12 @@
+---
+kit:
+  name:    dev
+  version: latest
+  features: []
+
+genesis:
+  env: resolute-stemcell-without-feature
+
+params:
+  auxiliary_vault: true
+  stemcell_os:     ubuntu-resolute

@@ -109,7 +109,9 @@ EOF
 
   my @invalid = ();
   for my $feature ($self->features) {
-    if ($feature eq 'ocfp') {
+    if ($feature eq 'resolute') {
+      # Handled after the loop so that it overrides every other fragment.
+    } elsif ($feature eq 'ocfp') {
       # TODO: Check if iaas-specific ocfp file is present, and error if not.
       $self->add_files(
         'manifests/ocfp.yml',
@@ -127,7 +129,32 @@ EOF
     join(', ', @invalid)
   ) if @invalid;
 
+  $self->_process_resolute;
+
   return $self->done(1);
+}
+
+# Ubuntu resolute stemcells (opt-in; the default stays ubuntu-jammy).
+# Called after every other fragment is added so that it overrides the
+# stemcell os default.
+sub _process_resolute {
+  my ($self) = @_;
+
+  if ($self->want_feature('resolute')) {
+    my $stemcell_os = $self->env->lookup('params.stemcell_os', 'ubuntu-resolute');
+    bail(
+      "The #c{resolute} feature sets the stemcell os to ubuntu-resolute, but " .
+      "the environment sets #c{params.stemcell_os} to #R{%s}.  " .
+      "Remove that parameter.", $stemcell_os
+    ) if $stemcell_os ne 'ubuntu-resolute';
+    $self->add_files('manifests/resolute.yml');
+  } elsif ($self->env->lookup('params.stemcell_os', 'ubuntu-jammy') eq 'ubuntu-resolute') {
+    bail(
+      "The environment sets #c{params.stemcell_os} to ubuntu-resolute " .
+      "without the #c{resolute} feature.  Enable the feature and remove " .
+      "that parameter."
+    );
+  }
 }
 
 1;

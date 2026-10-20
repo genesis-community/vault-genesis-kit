@@ -1,0 +1,17 @@
+---
+kit:
+  name:    dev
+  version: latest
+  features:
+  - resolute
+
+genesis:
+  env: resolute
+
+params:
+  auxiliary_vault:  true
+  stemcell_version: "0.184"
+  ips:
+    - 10.99.0.16
+    - 10.99.0.17
+    - 10.99.0.18

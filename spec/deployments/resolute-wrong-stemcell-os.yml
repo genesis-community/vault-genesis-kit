@@ -1,0 +1,13 @@
+---
+kit:
+  name:    dev
+  version: latest
+  features:
+  - resolute
+
+genesis:
+  env: resolute-wrong-stemcell-os
+
+params:
+  auxiliary_vault: true
+  stemcell_os:     ubuntu-jammy
