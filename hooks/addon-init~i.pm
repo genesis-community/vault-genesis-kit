@@ -49,8 +49,7 @@ sub perform {
 			info("Attempting to #Y{initialize} Vault via node $ip");
 
 			# Target the Vault node
-			my ( $target_out, $target_rc ) =
-			  run( { stderr => 1 }, 'safe', 'target', "https://$ip", '-k', $env->name );
+			my $target_rc = _add_target( "https://$ip", $env->name );
 
 			if ( $target_rc != 0 ) {
 				info("#R{Failed to target Vault at $ip}, trying next node...");
@@ -120,6 +119,23 @@ sub perform {
 
 	bail("Could not find any reachable Vault nodes to initialize.");
 }
+
+# _add_target - create a safe target without changing the current one {{{
+# `safe target` makes the new target current, and Genesis checks the current
+# target when it starts, so a sealed Vault there stops every Genesis command on
+# the host.  Put the previous current target back afterwards.
+sub _add_target {
+	my ($url, $name) = @_;
+	my ($current_out) = run({stderr => 0, env => {VAULT_ADDR => '', SAFE_TARGET => ''}},
+		'safe', 'target', '--json'
+	);
+	my $current = eval {decode_json($current_out)} || {};
+	my (undef, $rc) = run({stderr => 0}, 'safe', 'target', $url, '-k', $name);
+	run({stderr => 0}, 'safe', 'target', $current->{name})
+		if $rc == 0 && $current->{name} && $current->{name} ne $name;
+	return $rc;
+}
+# }}}
 
 # _parse_seal_keys - Parse seal keys and root token out of safe init output {{{
 # Returns (\@seal_keys, $root_token) on success, or (undef, undef) if no seal

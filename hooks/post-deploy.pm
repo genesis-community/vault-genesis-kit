@@ -298,6 +298,23 @@ EOF
 	}
 }
 
+# _add_target - create a safe target without changing the current one {{{
+# `safe target` makes the new target current, and Genesis checks the current
+# target when it starts, so a sealed Vault there stops every Genesis command on
+# the host.  Put the previous current target back afterwards.
+sub _add_target {
+	my ($url, $name) = @_;
+	my ($current_out) = run({stderr => 0, env => {VAULT_ADDR => '', SAFE_TARGET => ''}},
+		'safe', 'target', '--json'
+	);
+	my $current = eval {decode_json($current_out)} || {};
+	my (undef, $rc) = run({stderr => 0}, 'safe', 'target', $url, '-k', $name);
+	run({stderr => 0}, 'safe', 'target', $current->{name})
+		if $rc == 0 && $current->{name} && $current->{name} ne $name;
+	return $rc;
+}
+# }}}
+
 # _vault_status - report the cluster's seal status as {initialized, sealed} {{{
 # Uses the safe target named after the environment, and creates it from the
 # deployment's VM addresses when it is missing or no longer answers.  `vault
@@ -313,8 +330,7 @@ sub _vault_status {
 	my ($vms) = read_json_from($self->env->bosh->execute('vms', '--json'));
 	my @ips = $vms ? map {$_->{ips}} @{$vms->{Tables}[0]{Rows}} : ();
 	for my $ip (@ips) {
-		my (undef, $rc) = run({stderr => 0}, 'safe', 'target', "https://$ip", '-k', $name);
-		next unless $rc == 0;
+		next unless _add_target("https://$ip", $name) == 0;
 		$status = _read_status($name);
 		return $status if $status;
 	}
