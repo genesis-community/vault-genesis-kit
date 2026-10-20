@@ -9,6 +9,15 @@ BEGIN {push @INC, $ENV{GENESIS_LIB} ? $ENV{GENESIS_LIB} : $ENV{HOME}.'/.genesis/
 use Genesis qw/bail info run/;
 
 use parent qw(Genesis::Hook::Addon);
+
+# Include the shared seal-status and safe target helpers
+BEGIN {
+  require File::Basename;
+  require File::Spec;
+  my $mixin_file = File::Basename::dirname(File::Spec->rel2abs(__FILE__)) . '/lib/_vault_cluster.pm';
+  do $mixin_file or die "Failed to include addon mixin $mixin_file: " . ($@ || $! || 'unknown error');
+}
+
 sub init {
   my $class = shift;
   my $obj = $class->SUPER::init(@_);
@@ -27,6 +36,11 @@ sub perform {
   my $env = $self->env;
 
   info("");
+
+  # Without strongbox, safe would only seal the one node the target points at
+  my $cluster = $self->_vault_env_cluster($env->name);
+  return $self->done(0)
+    unless $self->_ensure_strongbox_target($env->name, @{$cluster->{reachable}});
 
   # Run the safe seal command on the targeted Vault
   run(

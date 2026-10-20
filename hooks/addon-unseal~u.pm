@@ -9,6 +9,15 @@ BEGIN {push @INC, $ENV{GENESIS_LIB} ? $ENV{GENESIS_LIB} : $ENV{HOME}.'/.genesis/
 use Genesis qw/bail info run/;
 
 use parent qw(Genesis::Hook::Addon);
+
+# Include the shared seal-status and safe target helpers
+BEGIN {
+	require File::Basename;
+	require File::Spec;
+	my $mixin_file = File::Basename::dirname(File::Spec->rel2abs(__FILE__)) . '/lib/_vault_cluster.pm';
+	do $mixin_file or die "Failed to include addon mixin $mixin_file: " . ($@ || $! || 'unknown error');
+}
+
 sub init {
 	my $class = shift;
 	my $obj = $class->SUPER::init(@_);
@@ -29,20 +38,27 @@ sub perform {
 
 	info("");
 
-	# First check if every node is already unsealed.  `vault status` only reads
-	# the node the target points at, so ask safe, which reads every node through
-	# strongbox and exits non-zero with -e if any of them is sealed.  Strongbox
-	# lists no nodes at all while Vault can't reach Consul, and safe then exits
-	# zero, so also require it to name an unsealed node.
-	my ($status_out, $status_rc) = run({ stderr => 0 },
-		'safe', '-T', $env->name, 'status', '-e'
-	);
+	# safe only reaches every node through strongbox, so make sure the target
+	# uses it before anything is unsealed through it.
+	my $cluster = $self->_vault_env_cluster($env->name);
+	my $target = $self->_ensure_strongbox_target($env->name, @{$cluster->{reachable}});
 
-	if ($status_rc == 0 && $status_out =~ /is unsealed/) {
+	# First check if every node is already unsealed.  Each node answers for
+	# itself, so this needs no token, no strongbox, and no vault binary.
+	unless (@{$cluster->{nodes}}) {
+		info("#R{✗ BOSH lists no Vault nodes for this deployment, and there is no safe target for it}");
+		return $self->done(0);
+	}
+	if (!@{$cluster->{sealed}} && !@{$cluster->{unreachable}}) {
 		info("#G{✓ Vault is already unsealed}");
 		info("");
-		run({ interactive => 1 }, 'safe', '-T', $env->name, 'status');
+		$self->_vault_report_nodes($cluster);
 		return $self->done(1);
+	}
+	unless ($target) {
+		info("#R{✗ No usable safe target named} #C{".$env->name."}#R{, so nothing can be unsealed}");
+		$self->_vault_report_nodes($cluster);
+		return $self->done(0);
 	}
 
 	# Try to retrieve seal keys automatically
@@ -72,7 +88,7 @@ sub perform {
 			last if $exists_rc != 0;
 
 			# Read the key value
-			my ($key_data, $read_rc) = run({ stderr => 0 },
+			my ($key_data, $read_rc) = run({ stderr => 0, redact_output => 1 },
 				'safe', '-T', $env->name, 'get', $key_path
 			);
 
@@ -115,19 +131,18 @@ sub perform {
 			'safe', '-T', $env->name, 'unseal'
 		);
 
-		if ($unseal_rc == 0) {
+		# safe can exit zero having reached only some of the nodes, so the
+		# nodes themselves decide whether the unseal worked.
+		my $after = $self->_vault_wait_until_unsealed(map {$_->{url}} @{$cluster->{nodes}});
+		if ($unseal_rc == 0 && !@{$after->{sealed}} && !@{$after->{unreachable}}) {
 			info("#G{✓ Vault unsealed successfully!}");
 			info("");
-
-			# Show status
-			run({ interactive => 1 },
-				'safe', '-T', $env->name, 'status'
-			);
-
+			$self->_vault_report_nodes($after);
 			return $self->done(1);
 		} else {
 			info("#R{✗ Automatic unseal failed}");
 			info("Error: $unseal_out") if $unseal_out;
+			$self->_vault_report_nodes($after);
 			info("");
 			info("Falling back to manual unseal...");
 		}
@@ -142,7 +157,14 @@ sub perform {
 		'safe', '-T', $env->name, 'unseal'
 	);
 
-	return $self->done();
+	my $after = $self->_vault_wait_until_unsealed(map {$_->{url}} @{$cluster->{nodes}});
+	$self->_vault_report_nodes($after);
+	if (@{$after->{sealed}} || @{$after->{unreachable}}) {
+		info("#R{✗ Some Vault nodes are still sealed or did not answer}");
+		return $self->done(0);
+	}
+	info("#G{✓ Vault unsealed successfully!}");
+	return $self->done(1);
 }
 
 1;
