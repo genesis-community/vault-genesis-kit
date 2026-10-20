@@ -289,7 +289,7 @@ EOF
 	);
 
 	if ($store_rc == 0) {
-		info("#G{#@{+} Doomsday approle created successfully!}");
+		info("#G{#\@{+} Doomsday approle created successfully!}");
 		info("  Credentials stored in exodus at: $ENV{GENESIS_EXODUS_MOUNT}");
 		info("  - doomsday_approle_id");
 		info("  - doomsday_approle_secret");
@@ -384,7 +384,7 @@ sub _auto_init {
 	my $init_rc = $init_hook->perform();
 
 	if ($init_rc) {
-		info("#G{#@{+} Vault initialized successfully!}");
+		info("#G{#\@{+} Vault initialized successfully!}");
 
 		# The init addon stores seal keys, so we should be able to unseal now
 		# Check if we have seal keys stored
@@ -416,7 +416,7 @@ sub _auto_init {
 				);
 
 				if ($unseal_rc == 0) {
-					info("#G{#@{+} Vault unsealed successfully!}");
+					info("#G{#\@{+} Vault unsealed successfully!}");
 				} else {
 					info("#Y{WARNING:} Failed to unseal vault automatically");
 					info("You can unseal manually with: #G{genesis do $ENV{GENESIS_ENVIRONMENT} -- unseal}");
