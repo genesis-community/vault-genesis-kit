@@ -10,6 +10,7 @@ use parent qw(Genesis::Hook);
 
 use Genesis qw/info run mkfile_or_fail/;
 use Service::Vault;
+use JSON::PP;
 
 # init - Initialize the hook {{{
 sub init {
@@ -28,6 +29,21 @@ sub perform {
 	my @matching_vaults = Service::Vault->find_by_target($self->env->name);
 	return $self->done() unless @matching_vaults;
 	my $vault = $matching_vaults[0];
+
+	# A sealed or uninitialized Vault can't hand over its keys, and connecting
+	# to one bails the deploy, so check its status before reading anything.
+	# `vault status` exits 2 for a sealed Vault, so read the JSON regardless.
+	my ($status_out) = run({stderr => 0},
+		'safe', '-T', $self->env->name, 'vault', 'status', '-format=json'
+	);
+	my $status = eval {decode_json($status_out)};
+	unless (ref($status) eq 'HASH' && $status->{initialized} && !$status->{sealed}) {
+		info(
+			'[[  - #Yr{#@{!} warning} >>Vault is sealed, uninitialized, or '.
+			'unreachable - automatic unseal will not be available'
+		);
+		return $self->done(1);
+	}
 	$self->env->notify(" #iu{pre-deploy}: Retrieving vault unseal keys for post-deploy unsealing");
 	my $vault_seal_path = (grep {$_ =~ m{/vault/seal/keys$}} $vault->paths())[0];
 	if (!$vault_seal_path) {
