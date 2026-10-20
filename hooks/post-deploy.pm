@@ -122,7 +122,7 @@ sub _unseal_cluster {
 		info(
 			"  #R{\@{x} Failed to unseal vault automatically}\n\n".
 			"You can try to unseal manually with:\n".
-			"  #G{genesis do $name -- unseal}"
+			"  #G{genesis $name do unseal}"
 		);
 		return 0;
 	}
@@ -140,7 +140,7 @@ sub _unseal_cluster {
 		$self->_vault_report_nodes($after);
 		info(
 			"\nYou can try to unseal manually with:\n".
-			"  #G{genesis do $name -- unseal}"
+			"  #G{genesis $name do unseal}"
 		);
 		return 0;
 	}
@@ -153,9 +153,9 @@ sub _show_manual_instructions {
 	info(
 		"\nUnable to automatically unseal the vault.".
 		"\nIf this is a #Y{new deployment}, you need to initialize it first:\n".
-		"  #G{genesis do $ENV{GENESIS_ENVIRONMENT} -- init}".
+		"  #G{genesis $ENV{GENESIS_ENVIRONMENT} do init}".
 		"\nIf this is an #Y{existing deployment}, you need to unseal it manually:\n".
-		"  #G{genesis do $ENV{GENESIS_ENVIRONMENT} -- unseal}\n"
+		"  #G{genesis $ENV{GENESIS_ENVIRONMENT} do unseal}\n"
 	)
 }
 
@@ -431,7 +431,7 @@ sub _auto_init {
 	if (@{$cluster->{unreachable}}) {
 		info("Not every Vault node answered, so automatic initialization was skipped:");
 		$self->_vault_report_nodes($cluster);
-		info("Once every node is up, initialize the Vault with: #G{genesis do $name -- init}");
+		info("Once every node is up, initialize the Vault with: #G{genesis $name do init}");
 		return;
 	}
 
@@ -448,10 +448,10 @@ sub _auto_init {
 			"would leave that backup describing a Vault that no longer exists.\n\n".
 			"If you are restoring that Vault's data, restore it, then unseal with the backed-up ".
 			"keys (read them with #G{safe get %s}):\n".
-			"  #G{genesis do %s -- unseal}\n\n".
+			"  #G{genesis %s do unseal}\n\n".
 			"If this really is a new Vault, move the old backup aside, then initialize:\n".
 			"  #G{safe mv %s %s-retired-%s}\n".
-			"  #G{genesis do %s -- init}\n",
+			"  #G{genesis %s do init}\n",
 			$provider->url // '', $backup_path, $name,
 			$backup_path,
 			$name,
@@ -464,7 +464,7 @@ sub _auto_init {
 		info(
 			"#Y{Automatic initialization was skipped:} could not tell whether the deploying vault ".
 			"holds a seal-key backup at #C{%s} (%s), and initializing could strand older keys.\n".
-			"Check that path, then initialize with: #G{genesis do %s -- init}",
+			"Check that path, then initialize with: #G{genesis %s do init}",
 			$backup_path, $state_err, $name
 		);
 		return;
@@ -491,7 +491,7 @@ sub _auto_init {
 
 	unless ($init_rc) {
 		info("#R{ERROR:} Automatic initialization failed");
-		info("You can initialize manually with: #G{genesis do $name -- init}");
+		info("You can initialize manually with: #G{genesis $name do init}");
 		return;
 	}
 	info("#G{#\@{+} Vault initialized successfully!}");
@@ -510,7 +510,7 @@ sub _auto_init {
 	} else {
 		info("#Y{WARNING:} Could not read the seal keys back from the new Vault");
 		$self->_vault_report_nodes($after);
-		info("You can unseal manually with: #G{genesis do $name -- unseal}");
+		info("You can unseal manually with: #G{genesis $name do unseal}");
 	}
 }
 # }}}
