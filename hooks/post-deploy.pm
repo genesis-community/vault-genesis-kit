@@ -341,10 +341,12 @@ sub _vault_status {
 # A status read covers only the node the target points at.  After a rolling
 # deploy the others come back sealed, so ask safe, which reads every node
 # through strongbox and exits non-zero with -e if any of them is sealed.
+# Strongbox lists no nodes while Vault can't reach Consul, and safe then exits
+# zero, so also require it to name an unsealed node.
 sub _all_unsealed {
 	my ($self) = @_;
-	my (undef, $rc) = run({stderr => 0}, 'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'status', '-e');
-	return $rc == 0;
+	my ($out, $rc) = run({stderr => 0}, 'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'status', '-e');
+	return $rc == 0 && $out =~ /is unsealed/;
 }
 # }}}
 

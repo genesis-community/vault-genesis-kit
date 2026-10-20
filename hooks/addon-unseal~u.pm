@@ -31,12 +31,14 @@ sub perform {
 
 	# First check if every node is already unsealed.  `vault status` only reads
 	# the node the target points at, so ask safe, which reads every node through
-	# strongbox and exits non-zero with -e if any of them is sealed.
-	my (undef, $status_rc) = run({ stderr => 0 },
+	# strongbox and exits non-zero with -e if any of them is sealed.  Strongbox
+	# lists no nodes at all while Vault can't reach Consul, and safe then exits
+	# zero, so also require it to name an unsealed node.
+	my ($status_out, $status_rc) = run({ stderr => 0 },
 		'safe', '-T', $env->name, 'status', '-e'
 	);
 
-	if ($status_rc == 0) {
+	if ($status_rc == 0 && $status_out =~ /is unsealed/) {
 		info("#G{✓ Vault is already unsealed}");
 		info("");
 		run({ interactive => 1 }, 'safe', '-T', $env->name, 'status');
