@@ -12,7 +12,7 @@ Work through these steps in order when you move an existing environment to this 
 
 3. Upgrade Genesis to 3.1.0 or later, then set `kit.version` to 3.0.0 in each environment file.
 
-4. Upload the safe release that the kit pins. It is a development build with the version `0.3.2+dev.1` and no download URL, so the Director must hold it before you deploy.
+4. Upload the safe release that the kit pins. It is a development build with the version `0.3.2+dev.2` and no download URL, so the Director must hold it before you deploy.
 
 5. Deploy one environment at a time, and unseal the Vault with `genesis <env> do unseal` once each deploy finishes.
 

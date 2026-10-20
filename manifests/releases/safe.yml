@@ -4,4 +4,4 @@
 # Director must already hold this version before a deploy.
 releases:
 - name: safe
-  version: 0.3.2+dev.1
+  version: 0.3.2+dev.2

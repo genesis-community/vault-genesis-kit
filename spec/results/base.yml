@@ -44,7 +44,7 @@ instance_groups:
 name: base-vault
 releases:
 - name: safe
-  version: 0.3.2+dev.1
+  version: 0.3.2+dev.2
 stemcells:
 - alias: default
   os: ubuntu-jammy

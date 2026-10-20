@@ -214,7 +214,7 @@ params:
 
 The resolute stemcell does not ship runit, so the safe release starts its processes with `setpriv` from util-linux in place of `chpst`. The kit pins a safe release that does this on every stemcell, not only on resolute.
 
-The safe release that the kit pins is a development build with the version `0.3.2+dev.1` and no download URL. The Director must already hold that release before you deploy, so upload the tarball with `bosh upload-release` first. The kit switches to a final release with a URL and checksum once one is published.
+The safe release that the kit pins is a development build with the version `0.3.2+dev.2` and no download URL. The Director must already hold that release before you deploy, so upload the tarball with `bosh upload-release` first. The kit switches to a final release with a URL and checksum once one is published.
 
 ## Vault and Consul Licence Change
 
