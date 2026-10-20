@@ -8,9 +8,17 @@ BEGIN {push @INC, $ENV{GENESIS_LIB} ? $ENV{GENESIS_LIB} : $ENV{HOME}.'/.genesis/
 
 use parent qw(Genesis::Hook::PostDeploy);
 
-use Genesis qw/info run slurp lines read_json_from/;
+use Genesis qw/info run/;
 use Service::Vault;
 use JSON::PP;
+
+# Include the shared seal-status and safe target helpers
+BEGIN {
+	require File::Basename;
+	require File::Spec;
+	my $mixin_file = File::Basename::dirname(File::Spec->rel2abs(__FILE__)) . '/lib/_vault_cluster.pm';
+	do $mixin_file or die "Failed to include hook mixin $mixin_file: " . ($@ || $! || 'unknown error');
+}
 
 # init - Initialize the hook {{{
 sub init {
@@ -24,61 +32,122 @@ sub init {
 # perform - Main hook execution {{{
 sub perform {
 	my ($self) = @_;
+	my $name = $self->env->name;
 
-	# Only proceed if deployment was successful
-	unless ($ENV{GENESIS_DEPLOY_RC} == 0) {
-		info("#R{Deployment failed} - skipping post-deploy actions");
+	my $cluster = $self->_vault_env_cluster($name);
+	my @keys = _predeploy_keys();
+
+	# A failed deploy can still have restarted some nodes, and a restarted node
+	# comes back sealed.  Unseal those before reporting the failure, so the
+	# cluster doesn't stay degraded until the next successful deploy.
+	unless ($self->deploy_successful) {
+		if (@{$cluster->{sealed}} && @keys) {
+			info("");
+			info("The deployment failed, but some Vault nodes are #Y{sealed} - unsealing them with the pre-deploy keys...");
+			$self->_unseal_cluster($cluster, \@keys);
+		}
+		info("#R{Deployment failed} - skipping the remaining post-deploy actions");
 		return $self->done(1);
 	}
 
 	info("");
-	info("#M{$ENV{GENESIS_ENVIRONMENT}} Vault deployed successfully!");
+	info("#M{$name} Vault deployed successfully!");
 	info("");
 
-	# One status read decides between initializing, unsealing, and nothing.
-	my $status = $self->_vault_status;
-	if (!$status) {
-		info("#Y{Unable to reach the Vault} - cannot check whether it is sealed");
+	# One read of every node decides between initializing, unsealing, and
+	# nothing.
+	if (!@{$cluster->{reachable}}) {
+		info("#Y{Unable to reach any Vault node} - cannot check whether the cluster is sealed");
+		$self->_vault_report_nodes($cluster);
 		$self->_show_manual_instructions;
-	} elsif (!$status->{initialized}) {
+	} elsif (!$cluster->{initialized}) {
 		# A new deployment.  Initializing it also unseals it.
-		$self->_auto_init;
-	} elsif ($status->{sealed} || !$self->_all_unsealed) {
-		info("Vault is currently #Y{sealed} - unsealing is required to access secrets");
-		if (-s $ENV{GENESIS_PREDEPLOY_DATAFILE}) {
+		$self->_auto_init($cluster);
+	} elsif (@{$cluster->{sealed}} || @{$cluster->{unreachable}}) {
+		info("Vault is currently #Y{sealed} on some nodes - unsealing is required to access secrets");
+		$self->_vault_report_nodes($cluster);
+		if (!@{$cluster->{sealed}}) {
+			info("No reachable node is sealed; the nodes that did not answer may need to be unsealed once they are back.");
+		} elsif (@keys) {
 			info("Found unseal keys from pre-deploy, attempting automatic unseal...");
-			my $ok = run({interactive => 1, passfail => 1},
-				"safe -T $ENV{GENESIS_ENVIRONMENT} unseal < $ENV{GENESIS_PREDEPLOY_DATAFILE}"
-			);
-			if (!$ok) {
-				info(
-					"  #R{\@{x} Failed to unseal vault automatically}\n\n".
-					"You can try to unseal manually with:\n".
-					"  #G{genesis do $ENV{GENESIS_ENVIRONMENT} -- unseal}");
-			} else {
-				info("  #g{#\@{+} Vault unsealed successfully!}");
-			}
+			$self->_unseal_cluster($cluster, \@keys);
 		} else {
 			info("No pre-deploy seal keys found - cannot unseal automatically");
 			$self->_show_manual_instructions;
 		}
 	} else {
-		info("Vault is currently #G{unsealed} - no further action is needed");
+		info("Vault is currently #G{unsealed} on every node - no further action is needed");
 	}
 
-	# Setup doomsday approle if vault is initialized and unsealed
-	$self->_setup_doomsday_approle();
+	# The steps below need a node that is initialized and unsealed
+	my @urls = map {$_->{url}} @{$cluster->{nodes}};
+	$cluster = $self->_vault_cluster(@urls) if @urls;
+	if (@urls && @{$cluster->{serving}}) {
+		# Setup doomsday approle if vault is initialized and unsealed
+		$self->_setup_doomsday_approle();
+	}
 
 	info(
 		"\nFor details about the deployment, run:\n".
-		"  #G{genesis info $ENV{GENESIS_ENVIRONMENT}}\n"
+		"  #G{genesis info $name}\n"
 	);
 
 	# Check if KV versioning needs to be enabled
-	$self->_check_kv_versioning();
+	$self->_check_kv_versioning() if @urls && @{$cluster->{serving}};
 
 	return $self->done(1);
 }
+# }}}
+
+# _predeploy_keys - the unseal keys pre-deploy saved, in order {{{
+sub _predeploy_keys {
+	my $file = $ENV{GENESIS_PREDEPLOY_DATAFILE};
+	return () unless defined($file) && -s $file;
+	open(my $fh, '<', $file) or return ();
+	my @keys = grep {$_ ne ''} map {s/^\s+|\s+$//gr} <$fh>;
+	close($fh);
+	return @keys;
+}
+# }}}
+
+# _unseal_cluster - unseal every sealed node through strongbox {{{
+# safe reads the keys on stdin, so they never reach argv or the trace log.
+# Returns true when no node is left sealed.
+sub _unseal_cluster {
+	my ($self, $cluster, $keys) = @_;
+	my $name = $self->env->name;
+
+	my $target = $self->_ensure_strongbox_target($name, @{$cluster->{reachable}});
+	unless ($target) {
+		info(
+			"  #R{\@{x} Failed to unseal vault automatically}\n\n".
+			"You can try to unseal manually with:\n".
+			"  #G{genesis do $name -- unseal}"
+		);
+		return 0;
+	}
+
+	my ($out, $rc) = run(
+		{stdin => join("\n", @$keys)."\n", env => _safe_env()},
+		'safe', '-T', $name, 'unseal'
+	);
+	my @urls = map {$_->{url}} @{$cluster->{nodes}};
+	my $after = $self->_vault_wait_until_unsealed(@urls);
+
+	if (@{$after->{sealed}} || @{$after->{unreachable}}) {
+		($out //= '') =~ s/\s+$//;
+		info("  #R{\@{x} Failed to unseal every Vault node automatically}%s", $rc ? " (safe exited $rc)" : '');
+		$self->_vault_report_nodes($after);
+		info(
+			"\nYou can try to unseal manually with:\n".
+			"  #G{genesis do $name -- unseal}"
+		);
+		return 0;
+	}
+	info("  #g{#\@{+} Vault unsealed successfully on every node!}");
+	return 1;
+}
+# }}}
 
 sub _show_manual_instructions {
 	info(
@@ -92,16 +161,17 @@ sub _show_manual_instructions {
 
 sub _check_kv_versioning {
 	my ($self) = @_;
+	my $name = $self->env->name;
 
 	# Only check if we can authenticate
-	my ($auth_check, $auth_rc) = run({ stderr => 0 },
-		'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'auth', 'status'
+	my ($auth_check, $auth_rc) = run({ stderr => 0, env => _safe_env() },
+		'safe', '-T', $name, 'auth', 'status'
 	);
 
 	return unless $auth_rc == 0;
 
-	my ($out, $rc) = run({ stderr => 0 },
-		'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'vault', 'secrets', 'list', '--detailed'
+	my ($out, $rc) = run({ stderr => 0, env => _safe_env() },
+		'safe', '-T', $name, 'vault', 'secrets', 'list', '--detailed'
 	);
 
 	if ($rc == 0 && $out =~ /^secret\/.*map\[version:1\]/m) {
@@ -118,36 +188,42 @@ sub _check_kv_versioning {
 	}
 }
 
+# _setup_doomsday_approle - give doomsday read-only credentials in exodus {{{
+# The credentials are written to this environment's exodus data in the
+# deploying vault, where `genesis lookup --exodus` and the doomsday kit read
+# them.  Genesis rewrites that exodus data on every deploy, so a fresh
+# secret_id is minted each time, and every earlier secret_id of the role is
+# destroyed first, so at most one is ever valid.
 sub _setup_doomsday_approle {
 	my ($self) = @_;
-
-	# Check if vault is initialized and unsealed
-	my ($status_out, $status_rc) = run({ stderr => 0 },
-		'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'vault', 'status'
-	);
-
-	# Parse status to check if initialized and unsealed
-	return unless $status_rc == 0;
-	return if $status_out =~ /Initialized\s+false/;
-	return if $status_out =~ /Sealed\s+true/;
+	my $name = $self->env->name;
+	my $vault = _vault_target_query($name);
 
 	# Check if we can authenticate (need to be authenticated to create approles)
-	my ($auth_check, $auth_rc) = run({ stderr => 0 },
-		'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'auth', 'status'
-	);
+	my ($auth_check, $auth_rc) = $vault->({ stderr => 0 }, 'auth', 'status');
 
 	unless ($auth_rc == 0) {
 		info("Skipping doomsday approle setup - not authenticated with vault");
 		return;
 	}
 
+	my $provider = eval {$self->env->vault};
+	unless ($provider) {
+		my $err = ($@ || 'no deploying vault is configured for this environment') =~ s/\s+/ /gr;
+		info("Skipping doomsday approle setup - could not resolve the deploying vault to store its credentials in: $err");
+		return;
+	}
+	my $exodus_base = $ENV{GENESIS_EXODUS_BASE} // $self->env->exodus_base;
+	(my $exodus_path = $exodus_base) =~ s{/+$}{};
+
 	info("");
 	info("Setting up doomsday monitoring approle...");
 
 	# Enable approle auth if not already enabled
-	my ($enable_out, $enable_rc) = run(
-		'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'vault', 'auth', 'enable', 'approle'
+	my ($enable_out, $enable_rc) = $vault->({ stderr => 1 },
+		'vault', 'auth', 'enable', 'approle'
 	);
+	$enable_out //= '';
 
 	if ($enable_out =~ /Success\! Enabled approle auth method/ || $enable_out =~ /path is already in use/) {
 		info("#G{[ok]} AppRole auth enabled");
@@ -156,29 +232,17 @@ sub _setup_doomsday_approle {
 		return;
 	}
 
-	# Check if doomsday approle already exists
-	my ($list_out, $list_rc) = run({ stderr => 0 },
-		'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'vault', 'list', '-format=json', 'auth/approle/role'
+	# Check if doomsday approle already exists with credentials in exodus
+	my ($list_out, $list_rc) = $vault->({ stderr => 0 },
+		'vault', 'list', '-format=json', 'auth/approle/role'
 	);
-
-	if ($list_rc == 0 && $list_out) {
-		eval {
-			require JSON::PP;
-			my $roles = JSON::PP::decode_json($list_out);
-			if (ref($roles) eq 'ARRAY' && grep { $_ eq 'doomsday' } @$roles) {
-				my ($exodus_id, $id_rc) = run({ stderr => 0 },
-					'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'get', $ENV{GENESIS_EXODUS_MOUNT} . ':doomsday_approle_id'
-				);
-				my ($exodus_secret, $secret_rc) = run({ stderr => 0 },
-					'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'get', $ENV{GENESIS_EXODUS_MOUNT} . ':doomsday_approle_secret'
-				);
-
-				if ($id_rc == 0 && $secret_rc == 0 && $exodus_id && $exodus_secret) {
-					info("#G{[ok]} Doomsday approle already exists with credentials in exodus");
-					return;
-				}
-			}
-		};
+	my $roles = $list_rc == 0 && $list_out ? eval {JSON::PP::decode_json($list_out)} : undef;
+	if (ref($roles) eq 'ARRAY' && grep {$_ eq 'doomsday'} @$roles) {
+		if ($provider->has($exodus_path, 'doomsday_approle_id')
+			&& $provider->has($exodus_path, 'doomsday_approle_secret')) {
+			info("#G{[ok]} Doomsday approle already exists with credentials in exodus");
+			return;
+		}
 	}
 
 	# Create doomsday read-only policy
@@ -225,8 +289,8 @@ path "secret/metadata/*" {
 }
 EOF
 
-	my (undef, $policy_rc) = run({ stdin => $policy, stderr => 1 },
-		'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'vault', 'policy', 'write', 'doomsday', '-'
+	my (undef, $policy_rc) = $vault->({ stdin => $policy, stderr => 1 },
+		'vault', 'policy', 'write', 'doomsday', '-'
 	);
 
 	unless ($policy_rc == 0) {
@@ -238,8 +302,8 @@ EOF
 	# Create doomsday approle
 	info("Creating doomsday approle...");
 
-	my (undef, $create_rc) = run({ stderr => 1 },
-		'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'set',
+	my (undef, $create_rc) = $vault->({ stderr => 1 },
+		'set',
 		'auth/approle/role/doomsday',
 		'secret_id_ttl=0',
 		'token_num_uses=0',
@@ -255,123 +319,164 @@ EOF
 	}
 
 	# Get role ID
-	my ($role_id, $role_rc) = run({ stderr => 0 },
-		'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'get', 'auth/approle/role/doomsday/role-id:role_id'
+	my ($role_id, $role_rc) = $vault->({ stderr => 0, redact_output => 1 },
+		'get', 'auth/approle/role/doomsday/role-id:role_id'
 	);
+	$role_id = defined($role_id) ? $role_id =~ s/^\s+|\s+$//gr : '';
 
-	unless ($role_rc == 0 && $role_id) {
+	unless ($role_rc == 0 && $role_id ne '') {
 		info("#R{ERROR:} Failed to get doomsday role ID");
 		return;
 	}
 
-	# Generate secret ID
-	my ($secret_id, $secret_rc) = run({ stderr => 0 },
-		'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'vault', 'write', '-field=secret_id', '-f',
-		'auth/approle/role/doomsday/secret-id'
-	);
+	# The secret_ids never expire, so destroy every earlier one before
+	# minting the next.  The accessors can't authenticate, so they may appear
+	# on argv.
+	my @accessors = _doomsday_secret_id_accessors($vault);
+	unless (defined($accessors[0])) {
+		info("#R{ERROR:} Failed to list the doomsday approle's secret IDs: %s", $accessors[1]);
+		return;
+	}
+	shift @accessors;
+	for my $accessor (@accessors) {
+		unless (_destroy_doomsday_secret_id($vault, $accessor)) {
+			info("#R{ERROR:} Failed to destroy an earlier doomsday secret ID (accessor %s), so no new one was minted", $accessor);
+			return;
+		}
+	}
+	info("#G{[ok]} Destroyed %d earlier doomsday secret ID(s)", scalar(@accessors)) if @accessors;
 
-	unless ($secret_rc == 0 && $secret_id) {
+	# Generate secret ID
+	my ($secret_out, $secret_rc) = $vault->({ stderr => 0, redact_output => 1 },
+		'vault', 'write', '-format=json', '-f', 'auth/approle/role/doomsday/secret-id'
+	);
+	my $minted = $secret_rc == 0 ? eval {JSON::PP::decode_json($secret_out)} : undef;
+	my $secret_id = ref($minted) eq 'HASH' && ref($minted->{data}) eq 'HASH' ? $minted->{data}{secret_id} : undef;
+	my $secret_accessor = ref($minted) eq 'HASH' && ref($minted->{data}) eq 'HASH' ? $minted->{data}{secret_id_accessor} : undef;
+
+	unless (length($secret_id // '') && length($secret_accessor // '')) {
 		info("#R{ERROR:} Failed to generate doomsday secret ID");
 		return;
 	}
 
-	# Store in exodus
+	# Store in exodus, each secret through stdin
 	info("Storing doomsday approle credentials in exodus...");
 
-	chomp($role_id);
-	chomp($secret_id);
-
-	my (undef, $store_rc) = run({ stderr => 1 },
-		'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'set',
-		$ENV{GENESIS_EXODUS_MOUNT},
-		"doomsday_approle_id=$role_id",
-		"doomsday_approle_secret=$secret_id"
-	);
+	my $provider_query = sub {$provider->query(@_)};
+	my ($id_rc, $id_err) = _vault_set_secret($provider_query, $exodus_path, 'doomsday_approle_id', $role_id);
+	my ($store_rc, $store_err) = $id_rc == 0
+		? _vault_set_secret($provider_query, $exodus_path, 'doomsday_approle_secret', $secret_id,
+			"doomsday_approle_secret_accessor=$secret_accessor")
+		: ($id_rc, $id_err);
 
 	if ($store_rc == 0) {
 		info("#G{#\@{+} Doomsday approle created successfully!}");
-		info("  Credentials stored in exodus at: $ENV{GENESIS_EXODUS_MOUNT}");
+		info("  Credentials stored in exodus at: #C{%s} in the deploying vault #M{%s}", $exodus_path, $provider->url // '');
 		info("  - doomsday_approle_id");
 		info("  - doomsday_approle_secret");
+		info("  - doomsday_approle_secret_accessor");
 	} else {
-		info("#R{ERROR:} Failed to store doomsday credentials in exodus");
+		$store_err =~ s/\s+/ /g;
+		info("#R{ERROR:} Failed to store doomsday credentials in exodus: %s", $store_err || "safe exited $store_rc");
+		# Nobody holds the new secret ID, so don't leave it valid
+		if (_destroy_doomsday_secret_id($vault, $secret_accessor)) {
+			info("  Destroyed the doomsday secret ID that could not be stored");
+		} else {
+			info("  #Y{WARNING:} Could not destroy the doomsday secret ID that could not be stored (accessor %s)", $secret_accessor);
+		}
 	}
 }
+# }}}
 
-# _add_target - create a safe target without changing the current one {{{
-# `safe target` makes the new target current, and Genesis checks the current
-# target when it starts, so a sealed Vault there stops every Genesis command on
-# the host.  Put the previous current target back afterwards.
-sub _add_target {
-	my ($url, $name) = @_;
-	my ($current_out) = run({stderr => 0, env => {VAULT_ADDR => '', SAFE_TARGET => ''}},
-		'safe', 'target', '--json'
+# _doomsday_secret_id_accessors - accessors of every doomsday secret_id {{{
+# Returns (1, @accessors), or (undef, $error) when they can't be listed.
+# Vault answers a list with nothing in it with "No value found".
+sub _doomsday_secret_id_accessors {
+	my ($vault) = @_;
+	my ($out, $rc, $err) = $vault->({ stderr => 0 },
+		'vault', 'list', '-format=json', 'auth/approle/role/doomsday/secret-id'
 	);
-	my $current = eval {decode_json($current_out)} || {};
-	my (undef, $rc) = run({stderr => 0}, 'safe', '-k', 'target', '--strongbox', $url, $name);
-	run({stderr => 0}, 'safe', 'target', $current->{name})
-		if $rc == 0 && $current->{name} && $current->{name} ne $name;
-	return $rc;
+	my $text = join(' ', grep {defined} $out, $err);
+	return (1) if $rc != 0 && $text =~ /No value found/i;
+	my $list = $rc == 0 ? eval {JSON::PP::decode_json($out)} : undef;
+	return (1, grep {defined && !ref && /\S/} @$list) if ref($list) eq 'ARRAY';
+	$text =~ s/\s+/ /g;
+	return (undef, $text =~ /\S/ ? $text : "safe exited $rc");
 }
 # }}}
 
-# _vault_status - report the cluster's seal status as {initialized, sealed} {{{
-# Uses the safe target named after the environment, and creates it from the
-# deployment's VM addresses when it is missing or no longer answers.  `vault
-# status` exits 2 for a sealed Vault, so its JSON is read whatever the exit
-# code.  Returns undef when no node answers.
-sub _vault_status {
-	my ($self) = @_;
-	my $name = $ENV{GENESIS_ENVIRONMENT};
-
-	my $status = _read_status($name);
-	return $status if $status;
-
-	my ($vms) = read_json_from($self->env->bosh->execute('vms', '--json'));
-	my @ips = $vms ? map {$_->{ips}} @{$vms->{Tables}[0]{Rows}} : ();
-	for my $ip (@ips) {
-		next unless _add_target("https://$ip", $name) == 0;
-		$status = _read_status($name);
-		return $status if $status;
-	}
-	return undef;
-}
-
-# _all_unsealed - true when no node in the cluster is sealed {{{
-# A status read covers only the node the target points at.  After a rolling
-# deploy the others come back sealed, so ask safe, which reads every node
-# through strongbox and exits non-zero with -e if any of them is sealed.
-# Strongbox lists no nodes while Vault can't reach Consul, and safe then exits
-# zero, so also require it to name an unsealed node.
-sub _all_unsealed {
-	my ($self) = @_;
-	my ($out, $rc) = run({stderr => 0}, 'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'status', '-e');
-	return $rc == 0 && $out =~ /is unsealed/;
+# _destroy_doomsday_secret_id - destroy one secret_id by its accessor {{{
+sub _destroy_doomsday_secret_id {
+	my ($vault, $accessor) = @_;
+	my (undef, $rc) = $vault->({ stderr => 0 },
+		'vault', 'write', 'auth/approle/role/doomsday/secret-id-accessor/destroy',
+		"secret_id_accessor=$accessor"
+	);
+	return $rc == 0;
 }
 # }}}
 
-sub _read_status {
-	my ($name) = @_;
-	my ($out) = run({stderr => 0}, 'safe', '-T', $name, 'vault', 'status', '-format=json');
-	my $status = eval {decode_json($out)};
-	return undef unless ref($status) eq 'HASH' && exists($status->{sealed});
-	return {
-		initialized => $status->{initialized} ? 1 : 0,
-		sealed      => $status->{sealed}      ? 1 : 0,
-	};
-}
-# }}}
-
+# _auto_init - initialize a new Vault, unless that could strand older keys {{{
+# A seal-key backup already in the deploying vault belongs to an earlier
+# Vault under this environment's name.  When that Vault's data comes back,
+# for instance from a Consul snapshot, those are the only keys that open it,
+# so the cluster is left uninitialized for the operator to decide.
 sub _auto_init {
-	my ($self) = @_;
+	my ($self, $cluster) = @_;
+	my $name = $self->env->name;
 
 	info("");
-	info("Detected #Y{uninitialized Vault} - running automatic initialization...");
+	info("Detected #Y{uninitialized Vault}");
+
+	if (@{$cluster->{unreachable}}) {
+		info("Not every Vault node answered, so automatic initialization was skipped:");
+		$self->_vault_report_nodes($cluster);
+		info("Once every node is up, initialize the Vault with: #G{genesis do $name -- init}");
+		return;
+	}
+
+	my $provider = eval {$self->env->vault};
+	my $backup_path = $self->env->secrets_base . 'vault/seal/keys';
+	my ($state, $state_err) = $provider
+		? _vault_path_state($provider, $backup_path)
+		: ('unknown', ($@ || 'no deploying vault is configured for this environment') =~ s/\s+/ /gr);
+
+	if ($state eq 'present') {
+		info(
+			"#Y{Automatic initialization was skipped:} the deploying vault #M{%s} already holds a ".
+			"seal-key backup at #C{%s}, from an earlier Vault deployed as #C{%s}.  A new init ".
+			"would leave that backup describing a Vault that no longer exists.\n\n".
+			"If you are restoring that Vault's data, restore it, then unseal with the backed-up ".
+			"keys (read them with #G{safe get %s}):\n".
+			"  #G{genesis do %s -- unseal}\n\n".
+			"If this really is a new Vault, move the old backup aside, then initialize:\n".
+			"  #G{safe mv %s %s-retired-%s}\n".
+			"  #G{genesis do %s -- init}\n",
+			$provider->url // '', $backup_path, $name,
+			$backup_path,
+			$name,
+			$backup_path, $backup_path, _today(),
+			$name
+		);
+		return;
+	}
+	if ($state ne 'absent') {
+		info(
+			"#Y{Automatic initialization was skipped:} could not tell whether the deploying vault ".
+			"holds a seal-key backup at #C{%s} (%s), and initializing could strand older keys.\n".
+			"Check that path, then initialize with: #G{genesis do %s -- init}",
+			$backup_path, $state_err, $name
+		);
+		return;
+	}
+
+	info("Running automatic initialization...");
 
 	# Run the init addon.  Its module lives at a kit path that isn't on @INC,
-	# so load it from the file the way Genesis loads addon hooks.
+	# so load it from the file the way Genesis loads addon hooks.  Quiet mode
+	# keeps the seal keys and root token out of the deploy output.
 	my $init_file = $self->kit->path('hooks/addon-init~i.pm');
-	require $init_file unless Genesis::Hook::Addon::Vault::Init->can('init');
+	require $init_file unless Genesis::Hook::Addon::Vault::Init->can('perform');
 	my $init_hook = Genesis::Hook::Addon::Vault::Init->init(
 		env    => $self->env,
 		kit    => $self->kit,
@@ -379,56 +484,41 @@ sub _auto_init {
 		args   => [],
 		file   => $init_file,
 		label  => 'init',
+		quiet  => 1,
 	);
 
 	my $init_rc = $init_hook->perform();
 
-	if ($init_rc) {
-		info("#G{#\@{+} Vault initialized successfully!}");
-
-		# The init addon stores seal keys, so we should be able to unseal now
-		# Check if we have seal keys stored
-		my ($check_out, $check_rc) = run({ stderr => 0 },
-			'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'exists', 'secret/vault/seal/keys'
-		);
-
-		if ($check_rc == 0) {
-			info("");
-			info("Attempting to unseal the newly initialized vault...");
-
-			# Get seal keys and unseal
-			my @keys;
-			for (my $i = 1; $i <= 5; $i++) {
-				my ($key_out, $key_rc) = run({ stderr => 0 },
-					'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'get', "secret/vault/seal/keys:key$i"
-				);
-				if ($key_rc == 0 && $key_out) {
-					chomp($key_out);
-					push @keys, $key_out;
-				}
-			}
-
-			if (@keys) {
-				my $keys_content = join("\n", @keys);
-				my ($unseal_out, $unseal_rc) = run(
-					{ stdin => $keys_content, stderr => 1 },
-					'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'unseal'
-				);
-
-				if ($unseal_rc == 0) {
-					info("#G{#\@{+} Vault unsealed successfully!}");
-				} else {
-					info("#Y{WARNING:} Failed to unseal vault automatically");
-					info("You can unseal manually with: #G{genesis do $ENV{GENESIS_ENVIRONMENT} -- unseal}");
-				}
-			}
-		}
-	} else {
+	unless ($init_rc) {
 		info("#R{ERROR:} Automatic initialization failed");
-		info("You can initialize manually with: #G{genesis do $ENV{GENESIS_ENVIRONMENT} -- init}");
+		info("You can initialize manually with: #G{genesis do $name -- init}");
+		return;
+	}
+	info("#G{#\@{+} Vault initialized successfully!}");
+
+	# Init unseals the nodes strongbox knew about.  Unseal any it missed with
+	# the keys init stored in the new Vault.
+	my @urls = map {$_->{url}} @{$cluster->{nodes}};
+	my $after = $self->_vault_wait_until_unsealed(@urls);
+	return unless @{$after->{sealed}};
+
+	info("");
+	info("Attempting to unseal the remaining nodes of the newly initialized vault...");
+	my @keys = _vault_read_seal_keys(_vault_target_query($name));
+	if (@keys) {
+		$self->_unseal_cluster($after, \@keys);
+	} else {
+		info("#Y{WARNING:} Could not read the seal keys back from the new Vault");
+		$self->_vault_report_nodes($after);
+		info("You can unseal manually with: #G{genesis do $name -- unseal}");
 	}
 }
 # }}}
+
+sub _today {
+	my @t = localtime();
+	return sprintf('%04d%02d%02d', $t[5] + 1900, $t[4] + 1, $t[3]);
+}
 
 1;
 
