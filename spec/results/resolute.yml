@@ -44,7 +44,9 @@ instance_groups:
 name: resolute-vault
 releases:
 - name: safe
-  version: 0.3.2+dev.2
+  sha1: sha256:5a5ea100ab6b59d0fea402f80da16f5429dc5f80a3f23bcef3de1bafa141a7f6
+  url: https://github.com/cloudfoundry-community/safe-boshrelease/releases/download/v0.3.4/safe-boshrelease-0.3.4.tgz
+  version: 0.3.4
 stemcells:
 - alias: default
   os: ubuntu-resolute
