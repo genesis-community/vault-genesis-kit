@@ -43,7 +43,7 @@ sub perform {
 	} elsif (!$status->{initialized}) {
 		# A new deployment.  Initializing it also unseals it.
 		$self->_auto_init;
-	} elsif ($status->{sealed}) {
+	} elsif ($status->{sealed} || !$self->_all_unsealed) {
 		info("Vault is currently #Y{sealed} - unsealing is required to access secrets");
 		if (-s $ENV{GENESIS_PREDEPLOY_DATAFILE}) {
 			info("Found unseal keys from pre-deploy, attempting automatic unseal...");
@@ -308,7 +308,7 @@ sub _add_target {
 		'safe', 'target', '--json'
 	);
 	my $current = eval {decode_json($current_out)} || {};
-	my (undef, $rc) = run({stderr => 0}, 'safe', '-k', '--strongbox', 'target', $url, $name);
+	my (undef, $rc) = run({stderr => 0}, 'safe', '-k', 'target', '--strongbox', $url, $name);
 	run({stderr => 0}, 'safe', 'target', $current->{name})
 		if $rc == 0 && $current->{name} && $current->{name} ne $name;
 	return $rc;
@@ -336,6 +336,17 @@ sub _vault_status {
 	}
 	return undef;
 }
+
+# _all_unsealed - true when no node in the cluster is sealed {{{
+# A status read covers only the node the target points at.  After a rolling
+# deploy the others come back sealed, so ask safe, which reads every node
+# through strongbox and exits non-zero with -e if any of them is sealed.
+sub _all_unsealed {
+	my ($self) = @_;
+	my (undef, $rc) = run({stderr => 0}, 'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'status', '-e');
+	return $rc == 0;
+}
+# }}}
 
 sub _read_status {
 	my ($name) = @_;

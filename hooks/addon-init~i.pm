@@ -130,7 +130,7 @@ sub _add_target {
 		'safe', 'target', '--json'
 	);
 	my $current = eval {decode_json($current_out)} || {};
-	my (undef, $rc) = run({stderr => 0}, 'safe', '-k', '--strongbox', 'target', $url, $name);
+	my (undef, $rc) = run({stderr => 0}, 'safe', '-k', 'target', '--strongbox', $url, $name);
 	run({stderr => 0}, 'safe', 'target', $current->{name})
 		if $rc == 0 && $current->{name} && $current->{name} ne $name;
 	return $rc;

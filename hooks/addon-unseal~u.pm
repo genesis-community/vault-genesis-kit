@@ -29,22 +29,18 @@ sub perform {
 
 	info("");
 
-	# First check if vault is already unsealed
-	my ($status_out, $status_rc) = run({ stderr => 0 },
-		'safe', '-T', $env->name, 'vault', 'status', '-format=json'
+	# First check if every node is already unsealed.  `vault status` only reads
+	# the node the target points at, so ask safe, which reads every node through
+	# strongbox and exits non-zero with -e if any of them is sealed.
+	my (undef, $status_rc) = run({ stderr => 0 },
+		'safe', '-T', $env->name, 'status', '-e'
 	);
 
 	if ($status_rc == 0) {
-		eval {
-			require JSON::PP;
-			my $status = JSON::PP::decode_json($status_out);
-			if (!$status->{sealed}) {
-				info("#G{✓ Vault is already unsealed}");
-				info("");
-				run({ interactive => 1 }, 'safe', '-T', $env->name, 'status');
-				return $self->done(1);
-			}
-		};
+		info("#G{✓ Vault is already unsealed}");
+		info("");
+		run({ interactive => 1 }, 'safe', '-T', $env->name, 'status');
+		return $self->done(1);
 	}
 
 	# Try to retrieve seal keys automatically
@@ -79,19 +75,17 @@ sub perform {
 			);
 
 			if ($read_rc == 0 && $key_data) {
-				# Extract just the value
-				if ($key_data =~ /^[^:]+:(.+)$/m) {
-					my $key_value = $1;
-					$key_value =~ s/^\s+|\s+$//g;
+				# `safe get path:key` prints the bare value
+				my $key_value = $key_data;
+				$key_value =~ s/^\s+|\s+$//g;
 
-					# Validate key format
-					if ($key_value =~ /^[A-Za-z0-9+\/=]+$/) {
-						push @keys, $key_value;
-						info("  #G{✓} Found seal key $i");
-					} else {
-						info("  #Y{⚠} Invalid seal key $i format");
-						$errors++;
-					}
+				# Validate key format
+				if ($key_value =~ /^[A-Za-z0-9+\/=]+$/) {
+					push @keys, $key_value;
+					info("  #G{✓} Found seal key $i");
+				} else {
+					info("  #Y{⚠} Invalid seal key $i format");
+					$errors++;
 				}
 			} else {
 				info("  #R{✗} Failed to read seal key $i");
