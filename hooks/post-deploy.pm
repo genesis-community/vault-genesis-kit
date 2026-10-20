@@ -339,13 +339,17 @@ sub _auto_init {
 	info("");
 	info("Detected #Y{uninitialized Vault} - running automatic initialization...");
 
-	# Run the init addon using the Hook system
-	require Genesis::Hook::Addon::Vault::Init;
+	# Run the init addon.  Its module lives at a kit path that isn't on @INC,
+	# so load it from the file the way Genesis loads addon hooks.
+	my $init_file = $self->kit->path('hooks/addon-init~i.pm');
+	require $init_file unless Genesis::Hook::Addon::Vault::Init->can('init');
 	my $init_hook = Genesis::Hook::Addon::Vault::Init->init(
-		kit => $self->{kit},
-		env => $self->{env},
-		command => 'init',
-		args => []
+		env    => $self->env,
+		kit    => $self->kit,
+		script => 'init',
+		args   => [],
+		file   => $init_file,
+		label  => 'init',
 	);
 
 	my $init_rc = $init_hook->perform();
