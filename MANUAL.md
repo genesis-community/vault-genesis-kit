@@ -121,6 +121,8 @@ params:
 
 - `init` - Initializes the Vault cluster.  This can only be run once, as it
   formats the Vault storage and generates seal keys for protecting the Vault.
+  Post-deploy runs it for you on a new, empty cluster, as described under
+  Caveats.
 
 - `target` - Sets up a `safe` target for this Vault, named after the
   environment, and prompts for authentication.  Takes an optional
@@ -214,7 +216,7 @@ params:
 
 The resolute stemcell does not ship runit, so the safe release starts its processes with `setpriv` from util-linux in place of `chpst`. The kit pins a safe release that does this on every stemcell, not only on resolute.
 
-The safe release that the kit pins is a development build with the version `0.3.2+dev.2` and no download URL. The Director must already hold that release before you deploy, so upload the tarball with `bosh upload-release` first. The kit switches to a final release with a URL and checksum once one is published.
+The kit pins safe 0.3.4, which ships Vault 2.2.0 and Consul 2.0.4 and starts its processes with `setpriv`. The Director downloads it from the release's GitHub page on the first deploy.
 
 ## Vault and Consul Licence Change
 
@@ -224,15 +226,21 @@ This kit now deploys Vault 2.2.0 and Consul 2.0.4. Both are published by HashiCo
 
 Work through these steps in order when you move an existing environment from kit 2.x.
 
-1. Take a Consul snapshot and keep the Vault unseal keys and root token somewhere outside the Vault. A Vault that a 2.x server has unsealed cannot be rolled back to 1.14, so the snapshot is your only way back.
+1. Take a Consul snapshot, and keep the Vault unseal keys and root token somewhere outside the Vault. A Vault that a 2.x server has unsealed can't be rolled back to 1.14, so the snapshot is your only way back. Consul serves HTTPS only, so run the snapshot on one of the vault instances with `CONSUL_HTTP_ADDR=https://127.0.0.1:8500 CONSUL_CACERT=/var/vcap/jobs/vault/tls/peer/ca.pem /var/vcap/packages/consul/bin/consul snapshot save /var/vcap/store/vault/pre-upgrade.snap`, and copy the file off the VM.
 
-2. Plan the Consul jump. Consul supports upgrading across at most two major versions in one step, and going from 1.16 to 2.0 is further than that. Either deploy through the intermediate kit versions that carry Consul 1.18, 1.20, and 1.22 in turn, or build a new environment on this kit and restore the Consul snapshot into it.
+2. Know that the Consul upgrade is a direct jump. Consul's guidance is to move at most two major versions at a time, and going from 1.16 to 2.0 is further than that, but no kit or safe release carries the versions in between. When we tested the jump on a three-node cluster, the first two nodes came up as voters, and the third failed with "is not running after update" because its Consul `raft.db` was corrupt. The other two still held quorum, so we recovered it by hand, and the next deploy finished with every secret intact.
 
-3. Set `kit.version` to 3.0.0 in each environment file and upgrade Genesis to 3.1.0 or later.
+3. Upgrade Genesis to 3.1.0 or later, and make sure the deploy host has `safe` 1.24 or later and `curl`. Then set `kit.version` to 3.0.0 in each environment file.
 
-4. Deploy one environment at a time. BOSH replaces the nodes one by one, and the Vault will seal itself as it does after every deploy, so unseal it with `genesis <env> do unseal` when the deploy ends.
+4. Plan for an outage. Every node restarts sealed, so the Vault is down from the moment the last unsealed node restarts until post-deploy unseals it. Any environment that uses this Vault as its secrets provider can't deploy during that window.
 
-5. Expect the existing servers to keep their BoltDB raft log. Consul writes new clusters with the WAL log store, but a server that already has a `raft.db` file keeps using BoltDB and is not migrated automatically. That is safe, and a rebuilt node picks up WAL.
+5. Deploy one environment at a time. Each node now waits in post-start until its Consul server is a healthy voter in a full cluster, so BOSH can't stop the next server before the last one has rejoined. When the deploy ends, post-deploy unseals every node with the keys that pre-deploy read from the provider, and it also unseals them after a failed deploy. If it can't, unseal by hand with `genesis <env> do unseal`.
+
+6. Expect the existing servers to keep their BoltDB raft log. Consul writes new clusters with the WAL log store, but a server that already has a `raft.db` file keeps using BoltDB and isn't migrated automatically. That's safe, and a rebuilt node picks up WAL.
+
+If a node fails with a corrupt `raft.db`, recover it only while the other servers hold quorum, and on one node at a time. On the failed node, run `sudo /var/vcap/bosh/bin/monit stop consul`, move `/var/vcap/store/vault/consul/raft` aside, and run `sudo /var/vcap/bosh/bin/monit start consul`. The server rejoins with its node ID and copies the raft log from the leader. Check that `consul operator raft list-peers` lists it as a voter before you deploy again. If quorum is lost, this won't work, so follow Consul's `peers.json` outage recovery instead.
+
+Two more situations need care with the post-start gate. If every node is stopped, the first one to start can't find a leader, so start them together with `bosh start --canaries=0 --max-in-flight=100%`. If a node is already dead when you deploy, the gate fails on the first node it updates, so recreate the dead instance on its own first with `bosh recreate vault/<id>`.
 
 The kit now renders the `storage "consul"` stanza in place of the older `backend` stanza, takes the Consul TLS settings from `tls.defaults`, and no longer sets `start_join`, so the configuration files carry no deprecation warnings. You do not need to change any environment parameters for these.
 
@@ -245,14 +253,17 @@ root token.  The natural inclination will be to store these _in_
 the Vault, but that's a bad idea.  Use an external password
 manager instead, like 1password or LastPass.
 
-Every time Vault is deployed, whether to pick up configuration
-changes or to upgrade the operating system (stemcell), the Vault
-will protectively seal itself.  An operator **must** intervene to
-unseal it, or it will remain inaccessible.
+Every time Vault is deployed, whether to pick up configuration changes or to upgrade the operating system (stemcell), the Vault seals itself. Post-deploy unseals every node with the seal keys stored in the secrets provider at `<secrets base>/vault/seal/keys`, and the `unseal` addon does the same by hand. Both re-target the environment's safe target with strongbox when it lacks it, because without strongbox safe only reaches the one node it targets. The seal checks read `/v1/sys/seal-status` from every node with `curl`, so the deploy host doesn't need a `vault` or `bao` binary.
+
+The hooks target each node by IP address, and the kit's certificate names only `params.vault_domain` and 127.0.0.1, so those targets skip TLS verification. The `target` addon verifies against the kit's CA when `params.vault_domain` is set.
+
+On a new cluster, post-deploy initializes the Vault itself, but only when every node answers and the provider has no seal keys stored yet. When the provider already holds keys, it assumes those keys belong to data you may want back, so it skips the init and prints the steps to restore them, or to move them aside and initialize. The automatic init prints no key and no token. It stores the keys in the provider and the root token in your `~/.saferc`, and if it can't write the provider backup, it saves the keys to a mode 0600 file under `~/.genesis/vault-init-recovery/`. Copy that file somewhere safe and delete it.
+
+When the Doomsday integration is on, every deploy issues a new AppRole secret ID, revokes the earlier ones, and stores the credentials in the provider's exodus data for this environment.
 
 ## History
 
-Version 3.0.0 adds the `resolute` feature for the Ubuntu 26.04 stemcell, moves to Vault 2.2.0 and Consul 2.0.4, and pins a safe release that starts its processes with `setpriv` in place of `chpst`.
+Version 3.0.0 adds the `resolute` feature for the Ubuntu 26.04 stemcell, moves to Vault 2.2.0 and Consul 2.0.4, and pins safe 0.3.4, which starts its processes with `setpriv` in place of `chpst` and holds each node in post-start until Consul is healthy. Its hooks unseal every node, keep seal keys off command lines and out of deploy output, and initialize only an empty cluster.
 
 Version 2.0.0 adds support for additional cloud providers (STACKIT, OCFP) and
 updates to the newer stemcell versions.
