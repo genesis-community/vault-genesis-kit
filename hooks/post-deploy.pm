@@ -8,7 +8,7 @@ BEGIN {push @INC, $ENV{GENESIS_LIB} ? $ENV{GENESIS_LIB} : $ENV{HOME}.'/.genesis/
 
 use parent qw(Genesis::Hook::PostDeploy);
 
-use Genesis qw/info run slurp lines/;
+use Genesis qw/info run slurp lines read_json_from/;
 use Service::Vault;
 use JSON::PP;
 
@@ -35,9 +35,15 @@ sub perform {
 	info("#M{$ENV{GENESIS_ENVIRONMENT}} Vault deployed successfully!");
 	info("");
 
-	# Check if we have pre-deploy data for automatic unsealing
-	my $lines = lines(run("safe -T $ENV{GENESIS_ENVIRONMENT} status 2>/dev/null | grep 'is sealed'"));
-	if ($lines) {
+	# One status read decides between initializing, unsealing, and nothing.
+	my $status = $self->_vault_status;
+	if (!$status) {
+		info("#Y{Unable to reach the Vault} - cannot check whether it is sealed");
+		$self->_show_manual_instructions;
+	} elsif (!$status->{initialized}) {
+		# A new deployment.  Initializing it also unseals it.
+		$self->_auto_init;
+	} elsif ($status->{sealed}) {
 		info("Vault is currently #Y{sealed} - unsealing is required to access secrets");
 		if (-s $ENV{GENESIS_PREDEPLOY_DATAFILE}) {
 			info("Found unseal keys from pre-deploy, attempting automatic unseal...");
@@ -59,9 +65,6 @@ sub perform {
 	} else {
 		info("Vault is currently #G{unsealed} - no further action is needed");
 	}
-
-	# Check if this is the first deployment and auto-initialize if needed
-	$self->_auto_init_if_needed();
 
 	# Setup doomsday approle if vault is initialized and unsealed
 	$self->_setup_doomsday_approle();
@@ -295,106 +298,101 @@ EOF
 	}
 }
 
-sub _auto_init_if_needed {
+# _vault_status - report the cluster's seal status as {initialized, sealed} {{{
+# Uses the safe target named after the environment, and creates it from the
+# deployment's VM addresses when it is missing or no longer answers.  `vault
+# status` exits 2 for a sealed Vault, so its JSON is read whatever the exit
+# code.  Returns undef when no node answers.
+sub _vault_status {
+	my ($self) = @_;
+	my $name = $ENV{GENESIS_ENVIRONMENT};
+
+	my $status = _read_status($name);
+	return $status if $status;
+
+	my ($vms) = read_json_from($self->env->bosh->execute('vms', '--json'));
+	my @ips = $vms ? map {$_->{ips}} @{$vms->{Tables}[0]{Rows}} : ();
+	for my $ip (@ips) {
+		my (undef, $rc) = run({stderr => 0}, 'safe', 'target', "https://$ip", '-k', $name);
+		next unless $rc == 0;
+		$status = _read_status($name);
+		return $status if $status;
+	}
+	return undef;
+}
+
+sub _read_status {
+	my ($name) = @_;
+	my ($out) = run({stderr => 0}, 'safe', '-T', $name, 'vault', 'status', '-format=json');
+	my $status = eval {decode_json($out)};
+	return undef unless ref($status) eq 'HASH' && exists($status->{sealed});
+	return {
+		initialized => $status->{initialized} ? 1 : 0,
+		sealed      => $status->{sealed}      ? 1 : 0,
+	};
+}
+# }}}
+
+sub _auto_init {
 	my ($self) = @_;
 
-	# Check if vault is initialized
-	my ($status_out, $status_rc) = run({ stderr => 0 },
-		'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'vault', 'status'
+	info("");
+	info("Detected #Y{uninitialized Vault} - running automatic initialization...");
+
+	# Run the init addon using the Hook system
+	require Genesis::Hook::Addon::Vault::Init;
+	my $init_hook = Genesis::Hook::Addon::Vault::Init->init(
+		kit => $self->{kit},
+		env => $self->{env},
+		command => 'init',
+		args => []
 	);
 
-	# If we can't get status, try to find a reachable vault node
-	if ($status_rc != 0) {
-		# Get VMs to find vault IPs
-		my ($out, $rc) = run({ stderr => 0 },
-			'bosh', '-e', $self->env->bosh->alias, '-d', $self->env->bosh->deployment,
-			'vms', '--json'
+	my $init_rc = $init_hook->perform();
+
+	if ($init_rc) {
+		info("#G{#@{+} Vault initialized successfully!}");
+
+		# The init addon stores seal keys, so we should be able to unseal now
+		# Check if we have seal keys stored
+		my ($check_out, $check_rc) = run({ stderr => 0 },
+			'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'exists', 'secret/vault/seal/keys'
 		);
 
-		if ($rc == 0 && $out) {
-			eval {
-				require JSON::PP;
-				my $data = JSON::PP::decode_json($out);
-				my @ips = map {$_->{ips}} @{$data->{Tables}[0]{Rows}};
+		if ($check_rc == 0) {
+			info("");
+			info("Attempting to unseal the newly initialized vault...");
 
-				# Try to target a vault node
-				foreach my $ip (@ips) {
-					my ($target_out, $target_rc) = run({ stderr => 0 },
-						'safe', 'target', "https://$ip", '-k', $ENV{GENESIS_ENVIRONMENT}
-					);
-
-					if ($target_rc == 0) {
-						# Try status again
-						($status_out, $status_rc) = run({ stderr => 0 },
-							'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'vault', 'status'
-						);
-						last if $status_rc == 0;
-					}
-				}
-			};
-		}
-	}
-
-	# Parse status to check if initialized
-	if ($status_rc == 0 && $status_out =~ /Initialized\s+false/) {
-		info("");
-		info("Detected #Y{uninitialized Vault} - running automatic initialization...");
-
-		# Run the init addon using the Hook system
-		require Genesis::Hook::Addon::Vault::Init;
-		my $init_hook = Genesis::Hook::Addon::Vault::Init->init(
-			kit => $self->{kit},
-			env => $self->{env},
-			command => 'init',
-			args => []
-		);
-
-		my $init_rc = $init_hook->perform();
-
-		if ($init_rc) {
-			info("#G{#@{+} Vault initialized successfully!}");
-
-			# The init addon stores seal keys, so we should be able to unseal now
-			# Check if we have seal keys stored
-			my ($check_out, $check_rc) = run({ stderr => 0 },
-				'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'exists', 'secret/vault/seal/keys'
-			);
-
-			if ($check_rc == 0) {
-				info("");
-				info("Attempting to unseal the newly initialized vault...");
-
-				# Get seal keys and unseal
-				my @keys;
-				for (my $i = 1; $i <= 5; $i++) {
-					my ($key_out, $key_rc) = run({ stderr => 0 },
-						'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'get', "secret/vault/seal/keys:key$i"
-					);
-					if ($key_rc == 0 && $key_out) {
-						chomp($key_out);
-						push @keys, $key_out;
-					}
-				}
-
-				if (@keys) {
-					my $keys_content = join("\n", @keys);
-					my ($unseal_out, $unseal_rc) = run(
-						{ stdin => $keys_content, stderr => 1 },
-						'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'unseal'
-					);
-
-					if ($unseal_rc == 0) {
-						info("#G{#@{+} Vault unsealed successfully!}");
-					} else {
-						info("#Y{WARNING:} Failed to unseal vault automatically");
-						info("You can unseal manually with: #G{genesis do $ENV{GENESIS_ENVIRONMENT} -- unseal}");
-					}
+			# Get seal keys and unseal
+			my @keys;
+			for (my $i = 1; $i <= 5; $i++) {
+				my ($key_out, $key_rc) = run({ stderr => 0 },
+					'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'get', "secret/vault/seal/keys:key$i"
+				);
+				if ($key_rc == 0 && $key_out) {
+					chomp($key_out);
+					push @keys, $key_out;
 				}
 			}
-		} else {
-			info("#R{ERROR:} Automatic initialization failed");
-			info("You can initialize manually with: #G{genesis do $ENV{GENESIS_ENVIRONMENT} -- init}");
+
+			if (@keys) {
+				my $keys_content = join("\n", @keys);
+				my ($unseal_out, $unseal_rc) = run(
+					{ stdin => $keys_content, stderr => 1 },
+					'safe', '-T', $ENV{GENESIS_ENVIRONMENT}, 'unseal'
+				);
+
+				if ($unseal_rc == 0) {
+					info("#G{#@{+} Vault unsealed successfully!}");
+				} else {
+					info("#Y{WARNING:} Failed to unseal vault automatically");
+					info("You can unseal manually with: #G{genesis do $ENV{GENESIS_ENVIRONMENT} -- unseal}");
+				}
+			}
 		}
+	} else {
+		info("#R{ERROR:} Automatic initialization failed");
+		info("You can initialize manually with: #G{genesis do $ENV{GENESIS_ENVIRONMENT} -- init}");
 	}
 }
 # }}}
