@@ -21,6 +21,7 @@ instance_groups:
     properties:
       safe:
         peer:
+          force_bind_default_ip: true
           tls:
             ca: <!{meta.vault}/certs/ca:certificate!>
             certificate: <!{meta.vault}/certs/consul:certificate!>
@@ -47,7 +48,7 @@ releases:
 stemcells:
 - alias: default
   os: ubuntu-resolute
-  version: "0.184"
+  version: '0.184'
 update:
   canaries: 1
   canary_watch_time: 30000-120000

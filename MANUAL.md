@@ -85,6 +85,12 @@ The following features are supported by this kit:
 
 - `ui` - If true, the Vault Web UI will be turned on. Defaults to true.
 
+- `consul_force_bind_default_ip` - If true, Consul binds to the instance's
+  own IP address.  Defaults to true.  bosh-dns adds an interface at
+  169.254.0.2, which Consul counts as a second private address, and Consul
+  refuses to start when it has more than one to choose from.  Set it to false
+  only when something else tells Consul which address to bind.
+
 ## OCFP-specific Parameters
 
 - `ocfp-subnet-prefix` - specifies the subnet prefix for subnets that will be used

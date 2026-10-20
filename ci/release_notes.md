@@ -34,6 +34,8 @@ Work through these steps in order when you move an existing environment to this 
 
 ## Bug fixes
 
+* Consul no longer refuses to start on Directors that run a current bosh-dns. bosh-dns puts 169.254.0.2 on an interface of its own, which Consul counted as a second private address, so the kit now sets `safe.peer.force_bind_default_ip` and Consul binds to the instance's own IP. The new `params.consul_force_bind_default_ip` turns that off.
+
 * The kit's spec suite passed none of its four environments, because the deployment files lacked `kit.name` and `kit.version`. They now carry both, and the whole suite passes.
 
 * The `ubuntu-bionic` default named in the manual for `stemcell_os` was out of date. The default is `ubuntu-jammy`.

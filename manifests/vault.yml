@@ -20,6 +20,9 @@ instance_groups:
       safe:
         ui: (( grab params.ui || true ))
         peer:
+          # bosh-dns puts 169.254.0.2 on its own interface, which Consul
+          # counts as a second private address and refuses to start.
+          force_bind_default_ip: (( grab params.consul_force_bind_default_ip || true ))
           tls:
             certificate: (( vault meta.vault "/certs/consul:certificate" ))
             key:         (( vault meta.vault "/certs/consul:key" ))
